@@ -1,0 +1,41 @@
+ai_name: 月下
+brain:
+  model_path: E:\models\Qwen3-VL-4B-Instruct
+  engine: transformers
+  gpu_memory_utilization: 0.85
+  max_model_len: 8192
+  enable_thinking: true
+  system_prompt_path: assets/prompts/system.txt
+memory:
+  db_path: data/chromadb
+perception:
+  asr:
+    model_path: E:\models\asr_model\faster_whisper
+    device: cuda
+    compute_type: int8
+    vad_threshold: 0.5
+    mic_mode: push_to_talk
+    mic_device: null
+    ptt_key: T
+  tts:
+    api_url: http://127.0.0.1:9880
+    model_path: E:\models\sovits_model\yuexia\YueXiaModel_e8_s112.pth
+    emotion_refs_dir: assets/emotion_refs
+    output_dir: data/tts_output
+face:
+  width: 400
+  height: 600
+  always_on_top: true
+  transparent: true
+  main_window:
+    width: 900
+    height: 650
+action:
+  screen:
+    mode: screenshot
+    interval: 30
+    fps: 1
+  browser:
+    headless: false
+diary:
+  output_dir: data/diary
