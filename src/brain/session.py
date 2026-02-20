@@ -83,6 +83,16 @@ class SessionManager:
     def delete(self, sid: str):
         path = self.dir / f"{sid}.json"
         if path.exists():
+            try:
+                data = json.loads(path.read_text("utf-8"))
+                for m in data.get("messages", []):
+                    tts = m.get("tts_path", "")
+                    if tts:
+                        p = Path(tts)
+                        if p.exists():
+                            p.unlink()
+            except Exception:
+                log.warning(f"清理会话 {sid} 音频文件时出错", exc_info=True)
             path.unlink()
         self.index = [e for e in self.index if e["id"] != sid]
         self._save_index()

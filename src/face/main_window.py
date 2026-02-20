@@ -108,10 +108,8 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         self.bridge_thread.message_received.connect(self._dispatch)
-        self.bridge_thread.start()
         if self.perc_bridge_thread:
             self.perc_bridge_thread.message_received.connect(self._dispatch_perc)
-            self.perc_bridge_thread.start()
         self.settings_page.mic_test_requested.connect(self._on_mic_test)
         self.settings_page.config_saved.connect(self._on_config_saved)
         # PTT 快捷键

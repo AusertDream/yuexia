@@ -12,6 +12,12 @@ log = get_logger("main")
 
 
 def main():
+    # 立即隐藏 CMD 控制台窗口，避免闪现
+    if sys.platform == "win32":
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)
+
     config = load_config("config.yaml")
     log.info("系统启动中...")
 
@@ -68,12 +74,6 @@ def main():
         log.info("服务进程已重启")
 
     start_services()
-
-    # 隐藏 CMD 控制台窗口（日志已转到 app 内控制台）
-    if sys.platform == "win32":
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 0)
 
     # Brain 主进程
     from src.brain.brain import Brain

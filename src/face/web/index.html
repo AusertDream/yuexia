@@ -2,19 +2,19 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="character">
-  <div id="face-container">
-    <div class="eye left"></div>
-    <div class="eye right"></div>
-    <div class="mouth" id="mouth"></div>
-  </div>
+  <canvas id="live2d-canvas"></canvas>
   <div id="emotion-indicator"></div>
 </div>
 <div id="chat-box"></div>
 <audio id="audio-player"></audio>
+<script src="lib/live2dcubismcore.min.js"></script>
+<script src="lib/pixi.min.js"></script>
+<script src="lib/cubism4.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

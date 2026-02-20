@@ -1,6 +1,7 @@
 """Brain 主控逻辑"""
 import asyncio
 import re
+import httpx
 from src.core.message import Message, MessageType
 from src.core.bus import AsyncQueueBridge, MessageRouter
 from src.core.config import get
@@ -66,6 +67,25 @@ class Brain:
             self.session_mgr.create()
 
         log.info("Brain 就绪")
+
+        # 轮询 SoVITS API 就绪
+        tts_url = get("perception.tts.api_url", "http://127.0.0.1:9880")
+        for i in range(60):
+            try:
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(tts_url, timeout=2)
+                    if r.status_code < 500:
+                        log.info("SoVITS API 已就绪")
+                        break
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+        else:
+            log.warning("SoVITS API 轮询超时，继续启动")
+
+        await self.face.send(Message(
+            type=MessageType.INIT_READY, source="brain", target="face",
+        ))
         await self._send_session_list()
         await self.face.send(Message(
             type=MessageType.SESSION_LOADED,

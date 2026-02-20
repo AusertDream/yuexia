@@ -42,6 +42,8 @@ class MessageType(str, Enum):
     SESSION_LOADED = "session_loaded"
     SESSION_RENAME = "session_rename"
     SESSION_DELETE = "session_delete"
+    # 初始化就绪
+    INIT_READY = "init_ready"
     # 系统
     SHUTDOWN = "shutdown"
     HEARTBEAT = "heartbeat"

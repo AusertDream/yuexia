@@ -4,7 +4,7 @@ brain:
   engine: transformers
   gpu_memory_utilization: 0.85
   max_model_len: 8192
-  enable_thinking: true
+  enable_thinking: false
   system_prompt_path: assets/prompts/system.txt
 memory:
   db_path: data/chromadb
