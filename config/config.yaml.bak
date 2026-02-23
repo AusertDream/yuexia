@@ -1,0 +1,58 @@
+action:
+  browser:
+    headless: false
+  screen:
+    enabled: false
+    fps: 1
+    interval: 30
+    mode: screenshot
+ai_name: 月下
+brain:
+  context_length: 8192
+  enable_thinking: false
+  engine: transformers
+  gpu_memory_utilization: 0.85
+  max_model_len: 8192
+  max_tokens: 4096
+  model_path: E:\models\Qwen3-VL-4B-Instruct
+  stream: true
+  system_prompt_path: assets/prompts/system.txt
+  temperature: 0.7
+  top_p: 0.9
+diary:
+  output_dir: data/diary
+face:
+  always_on_top: true
+  height: 605
+  main_window:
+    height: 660
+    width: 902
+  transparent: false
+  width: 393
+general:
+  accent_color: '#60cdff'
+  dark_mode: true
+memory:
+  auto_persist: true
+  collection_name: yuexia_memories_v1
+  db_path: data/chromadb
+  embedding_model: m3e-base
+  enabled: false
+perception:
+  asr:
+    compute_type: int8
+    device: cuda
+    mic_device: 1
+    mic_mode: push_to_talk
+    model_path: E:\models\asr_model\faster_whisper
+    model_size: medium
+    ptt_key: T
+    vad_threshold: 0.2
+  tts:
+    api_url: http://127.0.0.1:9880
+    emotion_refs_dir: assets/emotion_refs
+    gpt_weights: ''
+    model_path: E:\models\sovits_model\yuexia\YueXiaModel_e8_s112.pth
+    output_device: 4
+    output_dir: data/tts_output
+    sovits_weights: ''

@@ -5,3 +5,11 @@ CLAUDE.md
 GPT-SoVITS-v2-240821
 assets/live2d
 training data/
+frontend/node_modules
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+tests
+logs
+shared_claude
