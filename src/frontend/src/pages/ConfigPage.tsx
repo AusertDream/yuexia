@@ -75,6 +75,10 @@ export default function ConfigPage() {
   }
 
   const stopMicTest = () => {
+    setMicTesting(false)
+    setMicLevel(-1)
+    micSocketRef.current?.disconnect()
+    micSocketRef.current = null
     api.post('/asr/mic-test-stop').catch(() => {})
   }
 

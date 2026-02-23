@@ -3,6 +3,9 @@ import copy
 import os
 import yaml
 from flask import Blueprint, request, jsonify
+from src.backend.core.logger import get_logger
+
+log = get_logger("api.config")
 
 config_bp = Blueprint("config", __name__, url_prefix="/api")
 
@@ -42,6 +45,7 @@ def update_config():
     reload_config()
     from src.backend.services import reload_services
     reload_services()
+    log.info("配置已更新")
     return jsonify({"status": "ok"})
 
 

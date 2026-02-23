@@ -1,4 +1,5 @@
 """后端服务初始化 — 后台线程加载 + 状态追踪"""
+import os
 from src.backend.core.logger import get_logger
 
 log = get_logger("services")
@@ -25,11 +26,13 @@ def boot_services(socketio):
     try:
         from src.backend.services.log_service import LogService
         _log_service = LogService(socketio)
+        from src.backend.core.logger import redirect_stdio
+        redirect_stdio()
         _loading_status["log"] = "ok"
         log.info("LogService 初始化完成")
     except Exception as e:
         _loading_status["log"] = f"error: {e}"
-        log.error(f"LogService 初始化失败: {e}")
+        log.exception("LogService 初始化失败")
 
     # 2. PerceptionService
     _loading_status["perception"] = "loading"
@@ -40,7 +43,7 @@ def boot_services(socketio):
         log.info("PerceptionService 初始化完成")
     except Exception as e:
         _loading_status["perception"] = f"error: {e}"
-        log.error(f"PerceptionService 初始化失败: {e}")
+        log.exception("PerceptionService 初始化失败")
 
     # 3. BrainService
     _loading_status["brain"] = "loading"
@@ -51,9 +54,9 @@ def boot_services(socketio):
         log.info("BrainService 初始化完成")
     except Exception as e:
         _loading_status["brain"] = f"error: {e}"
-        log.error(f"BrainService 初始化失败: {e}")
+        log.exception("BrainService 初始化失败")
 
-    # 4. 预加载 LLM 引擎
+    # 4. 预加载 LLM 引擎（失败则终止进程）
     _loading_status["engine"] = "loading"
     try:
         if _brain_service:
@@ -61,10 +64,11 @@ def boot_services(socketio):
             _loading_status["engine"] = "ok"
             log.info("LLM 引擎预加载完成")
         else:
-            _loading_status["engine"] = "skipped"
+            log.error("BrainService 未初始化，无法加载引擎，进程退出")
+            os._exit(1)
     except Exception as e:
-        _loading_status["engine"] = f"error: {e}"
-        log.error(f"LLM 引擎预加载失败: {e}")
+        log.exception("LLM 引擎预加载失败，进程退出")
+        os._exit(1)
 
     _ready = True
     log.info(f"所有服务加载完成: {_loading_status}")
@@ -104,4 +108,4 @@ def reload_services():
         log.info("LLM 引擎重载完成")
     except Exception as e:
         _loading_status["engine"] = f"error: {e}"
-        log.error(f"LLM 引擎重载失败: {e}")
+        log.exception("LLM 引擎重载失败")

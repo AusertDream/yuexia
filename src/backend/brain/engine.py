@@ -139,6 +139,6 @@ def create_engine() -> LLMEngine:
         try:
             return VLLMEngine()
         except Exception as e:
-            log.warning(f"vLLM 加载失败，降级到 Transformers: {e}")
+            log.warning(f"vLLM 加载失败，降级到 Transformers: {e}", exc_info=True)
             return TransformersEngine()
     return TransformersEngine()

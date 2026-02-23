@@ -39,5 +39,5 @@ class TTSEngine:
                 return str(output_path)
             log.warning(f"TTS API 返回 {r.status_code}: {r.text[:200]}")
         except Exception as e:
-            log.warning(f"TTS 请求失败: {e}")
+            log.exception("TTS 请求失败")
         return None

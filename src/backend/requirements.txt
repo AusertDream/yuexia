@@ -7,6 +7,8 @@ flask-swagger-ui
 # AI/ML
 transformers>=4.30
 torch>=2.0
+torchvision
+accelerate
 # vllm>=0.3  # 仅 Linux，Windows 自动降级到 transformers
 
 # 向量数据库

@@ -4,6 +4,9 @@ import asyncio
 import base64
 import psutil
 from flask import Blueprint, jsonify, send_from_directory
+from src.backend.core.logger import get_logger
+
+log = get_logger("api.system")
 
 system_bp = Blueprint("system", __name__)
 
@@ -100,4 +103,5 @@ def screenshot():
             b64 = base64.b64encode(buf.getvalue()).decode()
             return jsonify({"image": f"data:image/jpeg;base64,{b64}"})
     except Exception as e:
+        log.exception("截图失败")
         return jsonify({"error": str(e)}), 500

@@ -7,7 +7,7 @@ export function useLogSocket() {
   useEffect(() => {
     const socket: Socket = io('/ws/logs', { reconnection: true, reconnectionDelay: 1000 })
     socket.on('log', (entry: LogEntry) => {
-      setLogs(prev => [...prev.slice(-999), entry])
+      setLogs(prev => [...prev.slice(-4999), entry])
     })
     return () => { socket.disconnect() }
   }, [])

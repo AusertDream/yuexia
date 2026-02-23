@@ -48,7 +48,7 @@ class BrainService:
                 try:
                     self.memory = Memory()
                 except Exception as e:
-                    log.warning(f"Memory 初始化失败，已禁用: {e}")
+                    log.warning("Memory 初始化失败，已禁用", exc_info=True)
                     self.memory = None
             self.prompt_mgr = PromptManager()
             self.diary = DiaryWriter()

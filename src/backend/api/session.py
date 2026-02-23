@@ -1,5 +1,8 @@
 """会话管理 API"""
 from flask import Blueprint, request, jsonify
+from src.backend.core.logger import get_logger
+
+log = get_logger("api.session")
 
 session_bp = Blueprint("session", __name__, url_prefix="/api/sessions")
 
@@ -35,6 +38,7 @@ def create_session():
     sid = b.session_mgr.create()
     b.history = []
     b.latest_screenshot = None
+    log.info(f"创建会话: {sid}")
     return jsonify({"session_id": sid})
 
 
@@ -49,6 +53,7 @@ def switch_session(sid):
     b.session_mgr.save_messages(b.history)
     b.history = b.session_mgr.load(sid)
     b.latest_screenshot = None
+    log.info(f"切换会话: {sid}")
     return jsonify({"session_id": sid, "messages": b.history})
 
 
@@ -64,6 +69,7 @@ def rename_session(sid):
         return jsonify({"error": "标题不能为空"}), 400
     title = title[:100]
     b.session_mgr.rename(sid, title)
+    log.info(f"重命名会话: {sid}")
     return jsonify({"status": "ok"})
 
 
@@ -75,6 +81,7 @@ def delete_session(sid):
         return err
     was_current = sid == b.session_mgr.current_id
     b.session_mgr.delete(sid)
+    log.info(f"删除会话: {sid}")
     if was_current:
         if b.session_mgr.current_id:
             b.history = b.session_mgr.load(b.session_mgr.current_id)

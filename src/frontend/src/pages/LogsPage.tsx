@@ -99,6 +99,12 @@ export default function LogsPage() {
 
         {/* Log content */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
+          <div className="flex gap-3 p-0.5 px-2 text-gray-500 text-xs font-medium border-b border-white/5 mb-1 select-none">
+            <span className="flex-shrink-0 w-24">时间</span>
+            <span className="flex-shrink-0 w-16">级别</span>
+            <span className="flex-shrink-0 w-24">模块</span>
+            <span>消息</span>
+          </div>
           {filtered.map((l, i) => (
             <div key={i} className={`flex gap-3 p-0.5 rounded px-2 hover:bg-white/5 ${l.level === 'ERROR' ? 'bg-red-500/5 text-red-100' : l.level === 'WARNING' ? 'text-yellow-100' : 'text-gray-300'}`}>
               <span className="text-gray-500 flex-shrink-0 w-24 select-none">[{l.time}]</span>
