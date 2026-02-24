@@ -2,17 +2,22 @@
 
 本地部署的 AI 虚拟伴侣，具备多模态对话、语音合成、情感表达、长期记忆与日记能力。
 
+## 画饼
+
+1. 月下应该能够像openclawd那样，浏览网页，使用MCP工具等（拥有四肢），拥有自己的生活。
+2. 月下应该说话的时候应该支持live2d实时表情变化，以及动作变化。计划设计一种action，类似VLA那种表示这种变化，同时也为了兼容之后的3D模型。
+
 ## 技术栈
 
-| 层 | 技术 |
-|---|---|
-| 前端 | React 19 + TypeScript + Vite 6 + TailwindCSS 4 |
-| 后端 | Flask + Flask-SocketIO |
-| LLM | Qwen3-VL-4B-Instruct（vLLM / Transformers 双模） |
-| TTS | GPT-SoVITS v2（HTTP API） |
-| ASR | Faster-Whisper + Silero-VAD |
-| 向量数据库 | ChromaDB |
-| Live2D | PixiJS + Cubism 4 SDK |
+| 层      | 技术                                       |
+| ------ | ---------------------------------------- |
+| 前端     | React 19 + TypeScript + Vite 6 + TailwindCSS 4 |
+| 后端     | Flask + Flask-SocketIO                   |
+| LLM    | Qwen3-VL-4B-Instruct（vLLM / Transformers 双模） |
+| TTS    | GPT-SoVITS v2（HTTP API）                  |
+| ASR    | Faster-Whisper + Silero-VAD              |
+| 向量数据库  | ChromaDB                                 |
+| Live2D | PixiJS + Cubism 4 SDK                    |
 
 ## 目录结构
 
@@ -98,19 +103,19 @@ yuexia/
 
 ## API 端点
 
-| 端点 | 方法 | 说明 |
-|---|---|---|
-| `/api/chat/stream` | POST | SSE 流式聊天 |
-| `/api/sessions` | GET / POST | 会话列表 / 创建 |
+| 端点                    | 方法                 | 说明              |
+| --------------------- | ------------------ | --------------- |
+| `/api/chat/stream`    | POST               | SSE 流式聊天        |
+| `/api/sessions`       | GET / POST         | 会话列表 / 创建       |
 | `/api/sessions/<sid>` | GET / PUT / DELETE | 切换 / 重命名 / 删除会话 |
-| `/api/config` | GET / PUT | 读取 / 更新配置 |
-| `/api/system/status` | GET | 系统资源状态 |
-| `/api/screenshot` | GET | 屏幕截图 |
-| `/api/emotion-refs` | GET | 情感参考音频列表 |
-| `/api/asr/devices` | GET | 音频输入设备列表 |
-| `/api/docs` | GET | Swagger UI |
-| `/ws/logs` | WebSocket | 实时日志流 |
-| `/ws/events` | WebSocket | 事件推送（表情、TTS 完成） |
+| `/api/config`         | GET / PUT          | 读取 / 更新配置       |
+| `/api/system/status`  | GET                | 系统资源状态          |
+| `/api/screenshot`     | GET                | 屏幕截图            |
+| `/api/emotion-refs`   | GET                | 情感参考音频列表        |
+| `/api/asr/devices`    | GET                | 音频输入设备列表        |
+| `/api/docs`           | GET                | Swagger UI      |
+| `/ws/logs`            | WebSocket          | 实时日志流           |
+| `/ws/events`          | WebSocket          | 事件推送（表情、TTS 完成） |
 
 ## 启动
 
@@ -126,13 +131,13 @@ cd src/frontend && npm run dev         # Frontend :5173
 
 ## 未实现功能（按 plan.md 路线图）
 
-| 功能 | 所属层 | 阶段 | 备注 |
-|------|--------|------|------|
-| ASR 语音识别服务集成 | 感知层 | 第一阶段 | API 端点已定义，服务未接入 |
-| Live2D 唇形同步 | 交互层 | 第二阶段 | 需根据音频振幅驱动口型参数 |
-| Live2D 表情动画 | 交互层 | 第二阶段 | 需根据情感标签驱动表情切换 |
-| MCP 工具宿主 | 动作层 | 第三阶段 | plan 标注"不急，可以先不实现" |
-| 浏览器自动化 | 动作层 | 第三阶段 | Playwright 集成 |
-| 屏幕持续感知 | 动作层 | 第三阶段 | 视频流或定时截图输入 Brain |
-| 感知-动作-观察闭环 | 动作层 | 第三阶段 | 操作后截图反馈至 Brain |
-| LoRA 微调 Pipeline | 自进化 | 第四阶段 | plan 标注"先不用做" |
+| 功能               | 所属层  | 阶段   | 备注                 |
+| ---------------- | ---- | ---- | ------------------ |
+| ASR 语音识别服务集成     | 感知层  | 第一阶段 | API 端点已定义，服务未接入    |
+| Live2D 唇形同步      | 交互层  | 第二阶段 | 需根据音频振幅驱动口型参数      |
+| Live2D 表情动画      | 交互层  | 第二阶段 | 需根据情感标签驱动表情切换      |
+| MCP 工具宿主         | 动作层  | 第三阶段 | plan 标注"不急，可以先不实现" |
+| 浏览器自动化           | 动作层  | 第三阶段 | Playwright 集成      |
+| 屏幕持续感知           | 动作层  | 第三阶段 | 视频流或定时截图输入 Brain   |
+| 感知-动作-观察闭环       | 动作层  | 第三阶段 | 操作后截图反馈至 Brain     |
+| LoRA 微调 Pipeline | 自进化  | 第四阶段 | plan 标注"先不用做"      |
