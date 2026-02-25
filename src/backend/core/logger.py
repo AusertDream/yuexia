@@ -52,10 +52,26 @@ class StreamToLogger:
             if not getattr(self._local, 'redirecting', False):
                 self._local.redirecting = True
                 try:
+                    msg = msg.rstrip()
+                    if not msg:
+                        return
+
                     level = self.level
-                    if level >= logging.ERROR and ('%|' in msg or 'it/s' in msg):
-                        level = logging.DEBUG
-                    self.logger.log(level, msg.rstrip())
+
+                    # 进度条检测：直接跳过，不记录
+                    if '\r' in msg or '%|' in msg or 'it/s' in msg or 'ETA' in msg:
+                        return
+                    if re.search(r'\d+%', msg) and ('|' in msg or '\u2588' in msg or '\u258f' in msg or '/' in msg):
+                        return
+
+                    # stderr 弃用警告降级为 WARNING
+                    if level >= logging.ERROR:
+                        _warn_kw = ('DeprecationWarning', 'FutureWarning', 'UserWarning',
+                                    'deprecated', 'will be removed', 'is deprecated')
+                        if any(kw in msg for kw in _warn_kw):
+                            level = logging.WARNING
+
+                    self.logger.log(level, msg)
                 finally:
                     self._local.redirecting = False
                 return

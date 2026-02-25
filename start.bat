@@ -30,9 +30,13 @@ start "" /B cmd /c "cd /d %SOVITS_DIR% && runtime\python.exe api_v2.py -a 127.0.
 timeout /t 5 /nobreak >nul
 
 echo [YueXia] Starting Backend service (port %BACKEND_PORT%)...
-start "" /B cmd /c "cd /d %ROOT% && call conda activate yuexia && python -m src.backend.app >%ROOT%logs\%TS%\backend.log 2>&1"
+set "YUEXIA_ROOT=%ROOT%"
+set "PYTHONIOENCODING=utf-8"
+start "" /B cmd /c "cd /d %ROOT% && conda run -n yuexia python -m src.backend.app >%ROOT%logs\%TS%\backend.log 2>&1"
 
 echo [YueXia] Starting Frontend service (port %FRONTEND_PORT%)...
+set "VITE_BACKEND_PORT=%BACKEND_PORT%"
+set "VITE_FRONTEND_PORT=%FRONTEND_PORT%"
 start "" /B cmd /c "cd /d %ROOT%src\frontend && npm run dev >%ROOT%logs\%TS%\frontend.log 2>&1"
 
 echo.
@@ -51,49 +55,11 @@ if errorlevel 1 goto wait_frontend
 
 echo [YueXia] Frontend ready! Opening browser...
 start "" http://localhost:%FRONTEND_PORT%
-for /f "skip=1" %%a in ('wmic process where "commandline like '%%vite%%'" get processid 2^>nul ^| findstr /r "[0-9]"') do for /f %%b in ("%%a") do set "FRONTEND_PID=%%b"
+for /f %%a in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like '*vite*'} | Select-Object -First 1).ProcessId"') do set "FRONTEND_PID=%%a"
 
-echo [YueXia] Waiting for backend...
+for /f %%a in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like '*src.backend.app*'} | Select-Object -First 1).ProcessId"') do set "BACKEND_PID=%%a"
 
-set RETRY=0
-:wait_backend
-if !RETRY! GEQ 30 (
-    echo [YueXia] ERROR: Backend failed to start within 60s.
-    goto shutdown
-)
-set /a RETRY+=1
-findstr /C:"进程退出" /C:"启动失败" "%ROOT%logs\%TS%\backend.log" >nul 2>&1
-if not errorlevel 1 (
-    echo [YueXia] ERROR: Backend startup failed ^(detected in log^)
-    goto shutdown
-)
-timeout /t 2 /nobreak >nul
-powershell -Command "try{$r=Invoke-WebRequest http://localhost:%BACKEND_PORT%/api/system/status -UseBasicParsing -TimeoutSec 2; if($r.Content -match '\"services_ready\":\s*true'){exit 0}else{exit 1}}catch{exit 1}" >nul 2>&1
-if errorlevel 1 goto wait_backend
-
-echo [YueXia] Backend ready!
-for /f "skip=1" %%a in ('wmic process where "commandline like '%%src.backend.app%%'" get processid 2^>nul ^| findstr /r "[0-9]"') do for /f %%b in ("%%a") do set "BACKEND_PID=%%b"
-
-echo [YueXia] Waiting for TTS...
-
-set RETRY=0
-:wait_tts
-if !RETRY! GEQ 30 (
-    echo [YueXia] ERROR: TTS failed to start within 60s.
-    goto shutdown
-)
-set /a RETRY+=1
-findstr /C:"Traceback (most recent call last):" /C:"进程退出" "%ROOT%logs\%TS%\tts.log" >nul 2>&1
-if not errorlevel 1 (
-    echo [YueXia] ERROR: TTS startup failed ^(detected in log^)
-    goto shutdown
-)
-timeout /t 2 /nobreak >nul
-powershell -Command "try{(Invoke-WebRequest http://localhost:%TTS_PORT% -UseBasicParsing -TimeoutSec 2).StatusCode}catch{exit 1}" >nul 2>&1
-if errorlevel 1 goto wait_tts
-
-echo [YueXia] TTS ready!
-for /f "skip=1" %%a in ('wmic process where "commandline like '%%api_v2.py%%'" get processid 2^>nul ^| findstr /r "[0-9]"') do for /f %%b in ("%%a") do set "TTS_PID=%%b"
+for /f %%a in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like '*api_v2.py*'} | Select-Object -First 1).ProcessId"') do set "TTS_PID=%%a"
 
 :menu
 echo.
@@ -148,8 +114,8 @@ if errorlevel 1 (
 )
 
 set "NAME_PIDS="
-for /f "skip=1" %%a in ('wmic process where "commandline like '%%%SVC_KEYWORD%%%'" get processid 2^>nul ^| findstr /r "[0-9]"') do for /f %%b in ("%%a") do (
-    set "NAME_PIDS=!NAME_PIDS! %%b"
+for /f %%a in ('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like '*!SVC_KEYWORD!*'} | ForEach-Object {$_.ProcessId}"') do (
+    set "NAME_PIDS=!NAME_PIDS! %%a"
 )
 
 set "PORT_PIDS="

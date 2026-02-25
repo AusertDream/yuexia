@@ -29,8 +29,14 @@ def stream_chat():
     log.info(f"收到聊天请求, 长度={len(text)}")
 
     def generate():
-        for item in brain.chat_stream(text.strip()):
-            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+        try:
+            for item in brain.chat_stream(text.strip()):
+                yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+        except GeneratorExit:
+            log.info("SSE 客户端断开连接")
+        except Exception as e:
+            log.exception("SSE 流异常")
+            yield f"data: {json.dumps({'type': 'error', 'text': str(e)}, ensure_ascii=False)}\n\n"
 
     return Response(
         generate(),

@@ -66,7 +66,11 @@ class VLLMEngine(LLMEngine):
                     pil_images.append(_load_and_resize(img))
             mm_data = {"image": pil_images}
 
-        params = self.SamplingParams(temperature=0.7, max_tokens=2048)
+        params = self.SamplingParams(
+            temperature=get("brain.temperature", 0.7),
+            max_tokens=get("brain.max_tokens", 4096),
+            top_p=get("brain.top_p", 0.9),
+        )
         request_id = f"req-{id(messages)}"
 
         results = self.engine.generate(text, params, request_id=request_id) if not mm_data else self.engine.generate({"prompt": text, "multi_modal_data": mm_data}, params, request_id=request_id)
@@ -91,7 +95,7 @@ class TransformersEngine(LLMEngine):
         self.processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_path,
-            dtype=torch.float16,
+            torch_dtype=torch.float16,
             device_map="auto",
             trust_remote_code=True,
         )
@@ -113,7 +117,14 @@ class TransformersEngine(LLMEngine):
             inputs = self.processor(text=text, return_tensors="pt").to(self.model.device)
         streamer = TextIteratorStreamer(self.processor, skip_prompt=True, skip_special_tokens=True)
 
-        gen_kwargs = {**inputs, "streamer": streamer, "max_new_tokens": 2048, "temperature": 0.7, "do_sample": True}
+        gen_kwargs = {
+            **inputs,
+            "streamer": streamer,
+            "max_new_tokens": get("brain.max_tokens", 4096),
+            "temperature": get("brain.temperature", 0.7),
+            "top_p": get("brain.top_p", 0.9),
+            "do_sample": True,
+        }
         thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
         thread.start()
 

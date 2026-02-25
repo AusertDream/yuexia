@@ -38,24 +38,48 @@ class BrainService:
         else:
             self.session_mgr.create()
 
+        self._engine_lock = threading.Lock()
+        self._engine_loading = False
+
         log.info("BrainService 初始化完成（引擎延迟加载）")
 
-    def _ensure_engine(self):
-        """延迟加载 LLM 引擎"""
-        if self.engine is None:
+    def _do_load_engine(self):
+        """实际加载引擎逻辑，调用方需持有 _engine_lock"""
+        self._engine_loading = True
+        try:
             self.engine = create_engine()
             if get("memory.enabled", False):
                 try:
                     self.memory = Memory()
-                except Exception as e:
+                except Exception:
                     log.warning("Memory 初始化失败，已禁用", exc_info=True)
                     self.memory = None
             self.prompt_mgr = PromptManager()
             self.diary = DiaryWriter()
             log.info("LLM 引擎已加载")
+        except Exception:
+            self.engine = None
+            self.memory = None
+            self.prompt_mgr = None
+            self.diary = None
+            raise
+        finally:
+            self._engine_loading = False
+
+    def _ensure_engine(self):
+        """延迟加载 LLM 引擎，线程安全"""
+        if self.engine is not None:
+            return
+        with self._engine_lock:
+            if self.engine is not None:
+                return
+            self._do_load_engine()
 
     def chat_stream(self, user_input: str):
         """同步 generator，yield dict。供 SSE 端点消费。"""
+        if self._engine_loading:
+            yield {"type": "error", "text": "AI 引擎正在加载中，请稍后再试"}
+            return
         self._ensure_engine()
         q = queue.Queue()
         future = asyncio.run_coroutine_threadsafe(self._stream_to_queue(user_input, q), self._loop)

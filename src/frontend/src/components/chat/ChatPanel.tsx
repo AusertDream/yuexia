@@ -10,7 +10,7 @@ export default function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [listening, setListening] = useState(false)
-  const { sendMessage, streaming } = useChatStream()
+  const { sendMessage, streaming, cancel } = useChatStream()
   const bottomRef = useRef<HTMLDivElement>(null)
   const eventSocket = useEventSocket()
 
@@ -25,6 +25,10 @@ export default function ChatPanel() {
 
   useEffect(() => { loadSessions() }, [loadSessions])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  useEffect(() => {
+    return () => { cancel() }
+  }, [cancel])
 
   // TTS 自动播放
   useEffect(() => {
@@ -43,7 +47,7 @@ export default function ChatPanel() {
       new Audio(url).play().catch(() => {})
     }
     eventSocket.on('tts_done', handler)
-    return () => { eventSocket.removeAllListeners('tts_done') }
+    return () => { eventSocket.off('tts_done', handler) }
   }, [eventSocket])
 
   const switchTo = (id: string) => {
@@ -90,8 +94,14 @@ export default function ChatPanel() {
           copy[copy.length - 1] = { ...copy[copy.length - 1], content: copy[copy.length - 1].content + chunk.text }
           return copy
         })
+      } else if (chunk.type === 'error') {
+        setMessages(prev => {
+          const copy = [...prev]
+          copy[copy.length - 1] = { ...copy[copy.length - 1], content: `[错误] ${chunk.text || '服务器内部错误'}` }
+          return copy
+        })
       }
-    })
+    }).catch(() => {})
   }
 
   return (

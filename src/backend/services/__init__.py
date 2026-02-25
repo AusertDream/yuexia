@@ -100,12 +100,26 @@ def reload_services():
     global _brain_service
     if not _brain_service:
         return
-    try:
-        _loading_status["engine"] = "reloading"
-        _brain_service.engine = None
-        _brain_service._ensure_engine()
-        _loading_status["engine"] = "ok"
-        log.info("LLM 引擎重载完成")
-    except Exception as e:
-        _loading_status["engine"] = f"error: {e}"
-        log.exception("LLM 引擎重载失败")
+    with _brain_service._engine_lock:
+        try:
+            _loading_status["engine"] = "reloading"
+            if _brain_service.engine:
+                import asyncio
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _brain_service.engine.shutdown(), _brain_service._loop
+                    ).result(timeout=10)
+                except Exception:
+                    log.warning("旧引擎关闭超时或失败", exc_info=True)
+                    try:
+                        import torch
+                        torch.cuda.empty_cache()
+                    except Exception:
+                        pass
+            _brain_service.engine = None
+            _brain_service._do_load_engine()
+            _loading_status["engine"] = "ok"
+            log.info("LLM 引擎重载完成")
+        except Exception as e:
+            _loading_status["engine"] = f"error: {e}"
+            log.exception("LLM 引擎重载失败")

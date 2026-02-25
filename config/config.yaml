@@ -49,7 +49,6 @@ perception:
     ptt_key: T
     vad_threshold: 0.2
   tts:
-    api_url: http://127.0.0.1:9880
     emotion_refs_dir: assets/emotion_refs
     gpt_weights: ''
     model_path: E:\models\sovits_model\yuexia\YueXiaModel_e8_s112.pth

@@ -75,15 +75,25 @@ class TtsLogTailer:
         t = threading.Thread(target=self._tail, daemon=True)
         t.start()
 
+    # tqdm 进度条特征字符，用于过滤刷屏行
+    _PROGRESS_CHARS = set("█▏▎▍▌▋▊▉")
+
     def _tail(self):
         while not os.path.exists(self.log_path):
             time.sleep(2)
-        with open(self.log_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(self.log_path, "r", encoding="gbk", errors="replace") as f:
             f.seek(0, 2)  # seek to end
             while True:
                 line = f.readline()
                 if line:
-                    self._logger.info(line.rstrip())
+                    line = line.rstrip()
+                    if not line:
+                        continue
+                    if "%|" in line or "it/s" in line or "s/it" in line or "\r" in line:
+                        continue
+                    if any(c in self._PROGRESS_CHARS for c in line):
+                        continue
+                    self._logger.info(line)
                 else:
                     time.sleep(0.5)
 

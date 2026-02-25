@@ -13,7 +13,13 @@ export default function LogsPage() {
   const [autoScroll, setAutoScroll] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const filtered = logs.filter(l => {
+  const isProgressBar = (msg: string): boolean => {
+    if (msg.includes('%|') || msg.includes('it/s') || msg.includes('s/it')) return true
+    if (/[█▏▎▍▌▋▊▉]/.test(msg)) return true
+    return false
+  }
+
+  const filtered = logs.filter(l => !isProgressBar(l.message)).filter(l => {
     if (filter !== 'ALL' && l.level !== filter) return false
     if (search && !l.message.toLowerCase().includes(search.toLowerCase())) return false
     return true
