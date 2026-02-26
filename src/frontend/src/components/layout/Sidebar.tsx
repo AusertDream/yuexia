@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useSocketStore } from '../../stores'
 
 const NAV = [
   { to: '/', icon: 'dashboard', label: '仪表盘' },
@@ -8,6 +9,8 @@ const NAV = [
 ]
 
 export default function Sidebar() {
+  const eventsConnected = useSocketStore(s => s.eventsConnected)
+
   return (
     <nav className="w-20 lg:w-64 flex-shrink-0 glass-panel border-r border-[var(--border-color)] flex flex-col justify-between py-6 z-20">
       <div className="flex flex-col gap-2">
@@ -34,8 +37,10 @@ export default function Sidebar() {
       <div className="px-4 lg:px-6">
         <div className="glass-panel p-3 rounded-lg border border-gray-700/50">
           <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
-            <span className="hidden lg:block text-xs font-mono text-green-400">系统在线</span>
+            <div className={`w-2 h-2 rounded-full ${eventsConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'}`} />
+            <span className={`hidden lg:block text-xs font-mono ${eventsConnected ? 'text-green-400' : 'text-red-400'}`}>
+              {eventsConnected ? '系统在线' : '连接断开'}
+            </span>
           </div>
         </div>
       </div>

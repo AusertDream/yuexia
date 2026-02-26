@@ -26,18 +26,18 @@ set "BACKEND_PID="
 set "FRONTEND_PID="
 
 echo [YueXia] Starting TTS service (port %TTS_PORT%)...
-start "" /B cmd /c "cd /d %SOVITS_DIR% && runtime\python.exe api_v2.py -a 127.0.0.1 -p %TTS_PORT% -c GPT_SoVITS/configs/tts_infer.yaml >%ROOT%logs\%TS%\tts.log 2>&1"
+start "" /B cmd /c "chcp 65001 >nul && cd /d %SOVITS_DIR% && runtime\python.exe api_v2.py -a 127.0.0.1 -p %TTS_PORT% -c GPT_SoVITS/configs/tts_infer.yaml >%ROOT%logs\%TS%\tts.log 2>&1"
 timeout /t 5 /nobreak >nul
 
 echo [YueXia] Starting Backend service (port %BACKEND_PORT%)...
 set "YUEXIA_ROOT=%ROOT%"
 set "PYTHONIOENCODING=utf-8"
-start "" /B cmd /c "cd /d %ROOT% && conda run -n yuexia python -m src.backend.app >%ROOT%logs\%TS%\backend.log 2>&1"
+start "" /B cmd /c "chcp 65001 >nul && cd /d %ROOT% && conda run -n yuexia python -m src.backend.app >%ROOT%logs\%TS%\backend.log 2>&1"
 
 echo [YueXia] Starting Frontend service (port %FRONTEND_PORT%)...
 set "VITE_BACKEND_PORT=%BACKEND_PORT%"
 set "VITE_FRONTEND_PORT=%FRONTEND_PORT%"
-start "" /B cmd /c "cd /d %ROOT%src\frontend && npm run dev >%ROOT%logs\%TS%\frontend.log 2>&1"
+start "" /B cmd /c "chcp 65001 >nul && cd /d %ROOT%src\frontend && npm run dev >%ROOT%logs\%TS%\frontend.log 2>&1"
 
 echo.
 echo [YueXia] Waiting for frontend...

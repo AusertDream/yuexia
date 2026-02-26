@@ -55,6 +55,7 @@ class StreamToLogger:
                     msg = msg.rstrip()
                     if not msg:
                         return
+                    msg = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', msg)
 
                     level = self.level
 

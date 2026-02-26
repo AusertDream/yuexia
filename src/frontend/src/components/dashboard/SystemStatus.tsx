@@ -1,16 +1,7 @@
-import { useEffect, useState } from 'react'
-import type { SystemStatus } from '../../types'
-import { api } from '../../api/client'
+import { useSystemStore } from '../../stores'
 
 export default function SystemStatusPanel() {
-  const [status, setStatus] = useState<SystemStatus | null>(null)
-
-  useEffect(() => {
-    const poll = () => api.get<SystemStatus>('/system/status').then(r => setStatus(r.data)).catch(() => {})
-    poll()
-    const id = setInterval(poll, 3000)
-    return () => clearInterval(id)
-  }, [])
+  const status = useSystemStore(s => s.status)
 
   const gpu = status?.gpu
   const vramPct = gpu ? Math.round((gpu.mem_used / gpu.mem_total) * 100) : 0

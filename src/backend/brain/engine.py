@@ -1,4 +1,5 @@
 """LLM 推理引擎：vLLM / Transformers 双模"""
+import uuid
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 from src.backend.core.config import get
@@ -71,7 +72,7 @@ class VLLMEngine(LLMEngine):
             max_tokens=get("brain.max_tokens", 4096),
             top_p=get("brain.top_p", 0.9),
         )
-        request_id = f"req-{id(messages)}"
+        request_id = uuid.uuid4().hex
 
         results = self.engine.generate(text, params, request_id=request_id) if not mm_data else self.engine.generate({"prompt": text, "multi_modal_data": mm_data}, params, request_id=request_id)
         prev_len = 0
@@ -95,10 +96,11 @@ class TransformersEngine(LLMEngine):
         self.processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_path,
-            torch_dtype=torch.float16,
+            dtype=torch.bfloat16,
             device_map="auto",
             trust_remote_code=True,
         )
+        log.info(f"模型 dtype: {self.model.dtype}, 设备: {self.model.device}")
         log.info(f"Transformers 引擎已加载: {model_path}")
 
     async def generate(self, messages: list[dict], images: list[str] | None = None) -> AsyncIterator[str]:

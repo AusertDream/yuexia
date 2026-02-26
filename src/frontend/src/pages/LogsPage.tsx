@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { useLogSocket } from '../hooks/useWebSocket'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSocketStore } from '../stores'
 
 const LEVELS = ['ALL', 'INFO', 'WARNING', 'ERROR'] as const
 const LEVEL_COLORS: Record<string, string> = {
@@ -7,7 +7,9 @@ const LEVEL_COLORS: Record<string, string> = {
 }
 
 export default function LogsPage() {
-  const logs = useLogSocket()
+  const logs = useSocketStore(s => s.logs)
+  const logsConnected = useSocketStore(s => s.logsConnected)
+  const clearLogs = useSocketStore(s => s.clearLogs)
   const [filter, setFilter] = useState<string>('ALL')
   const [search, setSearch] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
@@ -19,11 +21,14 @@ export default function LogsPage() {
     return false
   }
 
-  const filtered = logs.filter(l => !isProgressBar(l.message)).filter(l => {
-    if (filter !== 'ALL' && l.level !== filter) return false
-    if (search && !l.message.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  const filtered = useMemo(() =>
+    logs.filter(l => !isProgressBar(l.message)).filter(l => {
+      if (filter !== 'ALL' && l.level !== filter) return false
+      if (search && !l.message.toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    }),
+    [logs, filter, search]
+  )
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
@@ -51,8 +56,8 @@ export default function LogsPage() {
             系统执行日志
           </h1>
           <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            实时流已连接
+            <span className={`w-2 h-2 rounded-full ${logsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            {logsConnected ? '实时流已连接' : '连接断开'}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -83,7 +88,7 @@ export default function LogsPage() {
             <span className="material-symbols-outlined text-[20px]">download</span>
           </button>
           {/* Clear */}
-          <button onClick={() => { /* logs come from socket, no local clear */ }}
+          <button onClick={clearLogs}
             className="flex items-center gap-2 px-4 py-2.5 bg-[#232f48] hover:bg-[#2c3b59] text-white text-sm font-medium rounded-lg transition-colors border border-white/5">
             <span className="material-symbols-outlined text-[18px]">delete_sweep</span>清除
           </button>

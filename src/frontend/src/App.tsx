@@ -1,11 +1,23 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import Sidebar from './components/layout/Sidebar'
 import DashboardPage from './pages/DashboardPage'
 import ConfigPage from './pages/ConfigPage'
 import PerceptionPage from './pages/PerceptionPage'
 import LogsPage from './pages/LogsPage'
+import { useSocketStore, useSystemStore } from './stores'
 
 export default function App() {
+  // 应用启动时初始化 WebSocket 连接和系统状态轮询
+  useEffect(() => {
+    useSocketStore.getState().connect()
+    useSystemStore.getState().startPolling()
+    return () => {
+      useSocketStore.getState().disconnect()
+      useSystemStore.getState().stopPolling()
+    }
+  }, [])
+
   return (
     <BrowserRouter>
       <div className="h-screen flex flex-col antialiased">

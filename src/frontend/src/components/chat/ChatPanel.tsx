@@ -1,27 +1,14 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useChatStream } from '../../hooks/useSSE'
-import { useEventSocket } from '../../hooks/useWebSocket'
-import type { ChatMessage, Session } from '../../types'
-import * as sessApi from '../../api/sessions'
+import { useSocketStore, useChatStore } from '../../stores'
 
 export default function ChatPanel() {
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [currentId, setCurrentId] = useState('')
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const { sessions, currentId, messages, loadSessions, switchSession, createSession, deleteSession, setMessages } = useChatStore()
   const [input, setInput] = useState('')
   const [listening, setListening] = useState(false)
   const { sendMessage, streaming, cancel } = useChatStream()
   const bottomRef = useRef<HTMLDivElement>(null)
-  const eventSocket = useEventSocket()
-
-  const loadSessions = useCallback(() => {
-    sessApi.getSessions().then(r => {
-      setSessions(r.data.sessions)
-      const cid = r.data.current_id
-      setCurrentId(cid)
-      if (cid) sessApi.switchSession(cid).then(sr => setMessages(sr.data.messages)).catch(() => {})
-    }).catch(() => {})
-  }, [])
+  const eventsConnected = useSocketStore(s => s.eventsConnected)
 
   useEffect(() => { loadSessions() }, [loadSessions])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -32,7 +19,7 @@ export default function ChatPanel() {
 
   // TTS 自动播放
   useEffect(() => {
-    if (!eventSocket) return
+    if (!eventsConnected) return
     const handler = (d: { path: string }) => {
       if (!d.path) return
       const filename = d.path.replace(/\\/g, '/').split('/').pop()
@@ -46,23 +33,13 @@ export default function ChatPanel() {
       })
       new Audio(url).play().catch(() => {})
     }
-    eventSocket.on('tts_done', handler)
-    return () => { eventSocket.off('tts_done', handler) }
-  }, [eventSocket])
+    const store = useSocketStore.getState()
+    store.onTtsDone(handler)
+    return () => { store.offTtsDone(handler) }
+  }, [eventsConnected, setMessages])
 
-  const switchTo = (id: string) => {
-    sessApi.switchSession(id).then(r => {
-      setCurrentId(id)
-      setMessages(r.data.messages)
-    })
-  }
-
-  const newSession = () => {
-    sessApi.createSession().then(() => {
-      setMessages([])
-      loadSessions()
-    })
-  }
+  const switchTo = (id: string) => { switchSession(id) }
+  const newSession = () => { createSession() }
 
   const toggleVoice = () => {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
@@ -84,8 +61,7 @@ export default function ChatPanel() {
     if (!input.trim() || streaming) return
     const text = input.trim()
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }])
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+    setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '' }])
 
     sendMessage(text, chunk => {
       if (chunk.type === 'chunk') {
@@ -101,7 +77,17 @@ export default function ChatPanel() {
           return copy
         })
       }
-    }).catch(() => {})
+    }).catch(err => {
+      if (err?.name !== 'AbortError') {
+        setMessages(prev => {
+          const copy = [...prev]
+          if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+            copy[copy.length - 1] = { ...copy[copy.length - 1], content: '[错误] 请求失败，请重试' }
+          }
+          return copy
+        })
+      }
+    })
   }
 
   return (
@@ -116,10 +102,7 @@ export default function ChatPanel() {
             {/* 删除会话按钮 */}
             <span className="ml-1 hover:text-red-400 text-gray-500 cursor-pointer" onClick={e => {
               e.stopPropagation()
-              sessApi.deleteSession(s.id).then(() => {
-                if (s.id === currentId) setMessages([])
-                loadSessions()
-              })
+              deleteSession(s.id)
             }}>&times;</span>
           </button>
         ))}

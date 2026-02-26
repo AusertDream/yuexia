@@ -9,6 +9,48 @@ log = get_logger("api.config")
 
 config_bp = Blueprint("config", __name__, url_prefix="/api")
 
+# 允许用户修改的配置项白名单
+CONFIG_WHITELIST = frozenset({
+    "general.dark_mode",
+    "general.accent_color",
+    "brain.engine",
+    "brain.model_path",
+    "brain.system_prompt",
+    "brain.temperature",
+    "brain.max_tokens",
+    "brain.top_p",
+    "brain.gpu_memory_utilization",
+    "brain.enable_thinking",
+    "brain.context_length",
+    "brain.stream",
+    "perception.tts.api_url",
+    "perception.tts.sovits_weights",
+    "perception.tts.gpt_weights",
+    "perception.tts.output_device",
+    "perception.asr.model_size",
+    "perception.asr.compute_type",
+    "perception.asr.vad_threshold",
+    "perception.asr.mic_device",
+    "memory.enabled",
+    "memory.collection_name",
+    "memory.embedding_model",
+    "memory.auto_persist",
+    "action.screen.enabled",
+    "action.screen.interval",
+})
+
+
+def _flatten_keys(d: dict, prefix: str = "") -> set[str]:
+    """将嵌套 dict 展平为点分路径集合，如 {"brain": {"max_tokens": 100}} -> {"brain.max_tokens"}"""
+    keys = set()
+    for k, v in d.items():
+        full_key = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            keys.update(_flatten_keys(v, full_key))
+        else:
+            keys.add(full_key)
+    return keys
+
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "config", "config.yaml")
 EMOTION_REFS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "emotion_refs")
 
@@ -34,6 +76,18 @@ def update_config():
     new_config = request.get_json(silent=True)
     if not isinstance(new_config, dict):
         return jsonify({"error": "请求体必须是 JSON 对象"}), 400
+
+    # 白名单检查：只允许修改指定的配置项
+    requested_keys = _flatten_keys(new_config)
+    forbidden_keys = requested_keys - CONFIG_WHITELIST
+    if forbidden_keys:
+        log.warning(f"拒绝修改非白名单配置项: {forbidden_keys}")
+        return jsonify({
+            "error": "禁止修改的配置项",
+            "forbidden_keys": list(forbidden_keys),
+            "allowed_keys": list(CONFIG_WHITELIST)
+        }), 403
+
     existing = {}
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:

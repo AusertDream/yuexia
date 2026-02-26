@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { io } from 'socket.io-client'
+import { useSocketStore, useSystemStore } from '../stores'
 import { api } from '../api/client'
 
 interface AsrEntry { time: string; role: string; text: string }
@@ -18,35 +18,45 @@ const MOTOR_FILTERS = ['全部信号', '活跃', '错误'] as const
 export default function PerceptionPage() {
   const [asrLog, setAsrLog] = useState<AsrEntry[]>([])
   const [motorFilter, setMotorFilter] = useState<string>('全部信号')
-  const [serviceStatus, setServiceStatus] = useState<Record<string, string>>({})
+  const status = useSystemStore(s => s.status)
+  const eventsConnected = useSocketStore(s => s.eventsConnected)
   const [motors] = useState<MotorEntry[]>([
     { time: '--:--:--.--', signal: 'Idle_Breathing', confidence: 100, target: 'Global_Body', status: 'Looping' },
   ])
 
+  // 监听事件
   useEffect(() => {
-    const s = io('/ws/events')
+    if (!eventsConnected) return
     const ts = () => new Date().toLocaleTimeString()
-    s.on('asr_result', (d: { text: string }) => {
-      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: '语音', text: d.text }])
-    })
-    s.on('user_message', (d: { text: string }) => {
-      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: '用户', text: d.text }])
-    })
-    s.on('ai_message', (d: { text: string }) => {
-      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: 'AI', text: d.text }])
-    })
-    s.on('expression', (d: { emotion: string }) => {
-      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: '表情', text: d.emotion }])
-    })
-    return () => { s.disconnect() }
-  }, [])
+    const store = useSocketStore.getState()
 
-  useEffect(() => {
-    const poll = () => api.get('/system/status').then(r => setServiceStatus(r.data.loading_status ?? {})).catch(() => {})
-    poll()
-    const id = setInterval(poll, 5000)
-    return () => clearInterval(id)
-  }, [])
+    const asrHandler = (d: { text: string }) => {
+      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: '语音', text: d.text }])
+    }
+    const userHandler = (d: { text: string }) => {
+      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: '用户', text: d.text }])
+    }
+    const aiHandler = (d: { text: string }) => {
+      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: 'AI', text: d.text }])
+    }
+    const exprHandler = (d: { emotion: string }) => {
+      setAsrLog(prev => [...prev.slice(-99), { time: ts(), role: '表情', text: d.emotion }])
+    }
+
+    store.onAsrResult(asrHandler)
+    store.onUserMessage(userHandler)
+    store.onAiMessage(aiHandler)
+    store.onExpression(exprHandler)
+
+    return () => {
+      store.offAsrResult(asrHandler)
+      store.offUserMessage(userHandler)
+      store.offAiMessage(aiHandler)
+      store.offExpression(exprHandler)
+    }
+  }, [eventsConnected])
+
+  const serviceStatus = status?.loading_status ?? {}
 
   const filteredMotors = motors.filter(m => {
     if (motorFilter === '活跃') return m.status === 'Executing' || m.status === 'Looping'
@@ -90,7 +100,7 @@ export default function PerceptionPage() {
             <button onClick={() => setAsrLog([])} className="text-[10px] uppercase font-bold text-[var(--accent-blue)] hover:text-[var(--accent-blue)]/80">清除</button>
           </div>
           <div className="flex-1 rounded-xl border border-gray-700/50 bg-[var(--header-bg)] p-4 overflow-y-auto font-mono text-sm relative">
-            <div className="absolute top-2 right-2"><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" /></div>
+            <div className="absolute top-2 right-2"><div className={`w-2 h-2 rounded-full ${eventsConnected ? 'bg-green-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500'}`} /></div>
             <div className="flex flex-col gap-3">
               {asrLog.map((e, i) => (
                 <div key={i} className="flex gap-3">

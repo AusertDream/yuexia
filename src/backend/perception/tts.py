@@ -1,4 +1,5 @@
 """GPT-SoVITS TTS 集成 (HTTP API 模式)"""
+import atexit
 import re
 import httpx
 from pathlib import Path
@@ -22,6 +23,12 @@ class TTSEngine:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         tts_port = get("server.tts_port", 9880)
         self.api_url = f"http://127.0.0.1:{tts_port}"
+        # 持久连接池，复用连接减少延迟
+        self._client = httpx.AsyncClient(
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            timeout=httpx.Timeout(60, connect=10)
+        )
+        atexit.register(self._sync_close)
 
     async def synthesize(self, text: str, emotion: str = "neutral") -> str | None:
         text = _strip_emoji(text).strip()
@@ -43,8 +50,8 @@ class TTSEngine:
             payload["prompt_text"] = ref.get("text", "")
             payload["prompt_lang"] = "zh"
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=10)) as c:
-                r = await c.post(f"{self.api_url}/tts", json=payload)
+            # 使用持久连接池发送请求
+            r = await self._client.post(f"{self.api_url}/tts", json=payload)
             if r.status_code == 200:
                 output_path.write_bytes(r.content)
                 log.info(f"TTS 合成完成: {output_path}")
@@ -53,3 +60,18 @@ class TTSEngine:
         except Exception as e:
             log.exception("TTS 请求失败")
         return None
+
+    async def close(self):
+        """关闭连接池，释放资源"""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+    def _sync_close(self):
+        """进程退出时同步关闭连接池"""
+        if self._client and not self._client.is_closed:
+            import asyncio
+            try:
+                asyncio.run(self._client.aclose())
+            except Exception:
+                pass

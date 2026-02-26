@@ -19,6 +19,8 @@ _mic_test_lock = threading.Lock()
 
 @asr_bp.route("/devices")
 def list_input_devices():
+    if sd is None:
+        return jsonify({"error": "sounddevice 未安装，无法获取音频设备列表"}), 503
     devices = sd.query_devices()
     result = [
         {"index": i, "name": d["name"], "channels": d["max_input_channels"]}
@@ -29,6 +31,8 @@ def list_input_devices():
 
 @asr_bp.route("/output-devices")
 def list_output_devices():
+    if sd is None:
+        return jsonify({"error": "sounddevice 未安装，无法获取音频设备列表"}), 503
     devices = sd.query_devices()
     result = [
         {"index": i, "name": d["name"], "channels": d["max_output_channels"]}
@@ -39,6 +43,8 @@ def list_output_devices():
 
 @asr_bp.route("/mic-test", methods=["POST"])
 def mic_test():
+    if sd is None or np is None:
+        return jsonify({"error": "sounddevice/numpy 未安装，无法进行麦克风测试"}), 503
     if not _mic_test_lock.acquire(blocking=False):
         return jsonify({"status": "already_testing"}), 409
     from src.backend.app import socketio

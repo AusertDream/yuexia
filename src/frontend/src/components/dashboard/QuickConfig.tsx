@@ -1,22 +1,18 @@
-import { useEffect, useState } from 'react'
-import { api } from '../../api/client'
+import { useEffect } from 'react'
+import { useConfigStore } from '../../stores'
 
 export default function QuickConfig() {
-  const [cfg, setCfg] = useState<any>(null)
+  const { config: cfg, loadConfig, updateField, saveConfig } = useConfigStore()
 
   useEffect(() => {
-    api.get('/config').then(r => setCfg(r.data)).catch(() => {})
-  }, [])
+    // 如果 store 中没有配置，加载一次
+    if (!cfg) loadConfig()
+  }, [cfg, loadConfig])
 
   const update = (path: string, value: any) => {
-    if (!cfg) return
-    const keys = path.split('.')
-    const copy = JSON.parse(JSON.stringify(cfg))
-    let obj = copy
-    for (let i = 0; i < keys.length - 1; i++) obj = obj[keys[i]]
-    obj[keys[keys.length - 1]] = value
-    setCfg(copy)
-    api.put('/config', copy).catch(() => {})
+    updateField(path, value)
+    // 延迟保存，确保 store 状态已更新
+    setTimeout(() => saveConfig(), 0)
   }
 
   return (

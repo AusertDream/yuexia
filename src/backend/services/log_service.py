@@ -81,7 +81,7 @@ class TtsLogTailer:
     def _tail(self):
         while not os.path.exists(self.log_path):
             time.sleep(2)
-        with open(self.log_path, "r", encoding="gbk", errors="replace") as f:
+        with open(self.log_path, "r", encoding="utf-8", errors="replace") as f:
             f.seek(0, 2)  # seek to end
             while True:
                 line = f.readline()
