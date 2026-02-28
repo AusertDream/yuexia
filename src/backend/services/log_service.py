@@ -29,7 +29,18 @@ class WebSocketLogHandler(logging.Handler):
                 "message": record.getMessage(),
             }
             _log_buffer.append(entry)
-            self.socketio.emit("log", entry, namespace="/ws/logs")
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.socketio.emit("log", entry, namespace="/ws/logs"),
+                        loop
+                    )
+                else:
+                    loop.run_until_complete(self.socketio.emit("log", entry, namespace="/ws/logs"))
+            except RuntimeError:
+                pass
         except Exception as e:
             print(f"[LogHandler] {e}", file=_original_stderr)
 
@@ -81,21 +92,34 @@ class TtsLogTailer:
     def _tail(self):
         while not os.path.exists(self.log_path):
             time.sleep(2)
-        with open(self.log_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(self.log_path, "rb") as f:
             f.seek(0, 2)  # seek to end
+            buf = b""
             while True:
-                line = f.readline()
-                if line:
-                    line = line.rstrip()
-                    if not line:
-                        continue
-                    if "%|" in line or "it/s" in line or "s/it" in line or "\r" in line:
-                        continue
-                    if any(c in self._PROGRESS_CHARS for c in line):
-                        continue
-                    self._logger.info(line)
+                chunk = f.read(4096)
+                if chunk:
+                    buf += chunk
+                    while b"\n" in buf:
+                        raw_line, buf = buf.split(b"\n", 1)
+                        line = self._decode_line(raw_line)
+                        line = line.rstrip()
+                        if not line:
+                            continue
+                        if "%|" in line or "it/s" in line or "s/it" in line or "\r" in line:
+                            continue
+                        if any(c in self._PROGRESS_CHARS for c in line):
+                            continue
+                        self._logger.info(line)
                 else:
                     time.sleep(0.5)
+
+    @staticmethod
+    def _decode_line(raw: bytes) -> str:
+        """先尝试 UTF-8 解码，失败则 fallback 到 GBK"""
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw.decode("gbk", errors="replace")
 
 
 class LogService:
@@ -128,7 +152,11 @@ class LogService:
 
     @staticmethod
     def _find_latest_log_dir():
-        logs_root = Path("logs")
+        env_root = os.environ.get("YUEXIA_ROOT", "").strip()
+        if env_root:
+            logs_root = Path(env_root) / "logs"
+        else:
+            logs_root = Path("logs")
         if not logs_root.is_dir():
             return None
         subdirs = sorted([d for d in logs_root.iterdir() if d.is_dir()])

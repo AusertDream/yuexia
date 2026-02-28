@@ -1,9 +1,11 @@
 """统一日志（精简版，仅保留 backend 所需）"""
 import io
+import os
 import logging
 import re
 import sys
 import threading
+from pathlib import Path
 
 _LOG_FMT = "[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
 _DATE_FMT = "%H:%M:%S"
@@ -13,15 +15,61 @@ _original_stderr = sys.stderr
 _root_configured = False
 
 
+def _find_log_dir():
+    """查找 logs 目录下最新的子目录，优先使用 YUEXIA_ROOT 绝对路径"""
+    from datetime import datetime
+    env_root = os.environ.get("YUEXIA_ROOT", "").strip()
+    if env_root:
+        logs_root = Path(env_root) / "logs"
+    else:
+        # 通过当前文件路径推算项目根目录: src/backend/core/logger.py -> 往上4级
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        logs_root = project_root / "logs"
+    if not logs_root.is_dir():
+        try:
+            today = datetime.now().strftime("%Y%m%d")
+            log_dir = logs_root / today
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return str(log_dir)
+        except OSError:
+            return None
+    subdirs = sorted([d for d in logs_root.iterdir() if d.is_dir()])
+    if not subdirs:
+        try:
+            today = datetime.now().strftime("%Y%m%d")
+            log_dir = logs_root / today
+            log_dir.mkdir(exist_ok=True)
+            return str(log_dir)
+        except OSError:
+            return None
+    return str(subdirs[-1])
+
+
 def _setup_root_logger():
     global _root_configured
     if _root_configured:
         return
     root = logging.getLogger()
+    fmt = logging.Formatter(_LOG_FMT, datefmt=_DATE_FMT)
+
     stream = io.TextIOWrapper(_original_stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
     handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter(_LOG_FMT, datefmt=_DATE_FMT))
+    handler.setFormatter(fmt)
     root.addHandler(handler)
+
+    # 直接写入 backend.log，绕过 conda run 的管道缓冲
+    log_dir = _find_log_dir()
+    if log_dir:
+        try:
+            fh = logging.FileHandler(
+                Path(log_dir) / "backend.log", encoding="utf-8"
+            )
+            fh.setLevel(logging.INFO)
+            fh.setFormatter(fmt)
+            root.addHandler(fh)
+        except OSError:
+            pass
+
     root.setLevel(logging.INFO)
     _root_configured = True
 

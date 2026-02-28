@@ -1,0 +1,193 @@
+# ============================================================
+# Yuexia 完整配置模板
+# 所有配置项均有默认值，只需修改需要自定义的部分
+# ============================================================
+
+# AI 名称
+ai_name: 月下
+
+# ------------------------------------------------------------
+# 通用设置
+# ------------------------------------------------------------
+general:
+  dark_mode: true                    # 深色模式
+  accent_color: '#60cdff'            # 主题强调色
+  language: zh-CN                    # 界面语言
+  font_size: 14                      # 字体大小
+  animation_enabled: true            # 启用动画效果
+  sidebar_width: 280                 # 侧边栏宽度（像素）
+  message_bubble_style: modern       # 消息气泡样式
+  notification_enabled: true         # 启用通知
+  notification_sound: true           # 通知声音
+
+# ------------------------------------------------------------
+# 服务端口
+# ------------------------------------------------------------
+server:
+  backend_port: 5000                 # 后端服务端口
+  frontend_port: 5173                # 前端开发服务端口
+  tts_port: 9880                     # TTS 服务端口
+
+# ------------------------------------------------------------
+# 大脑（LLM 推理）
+# ------------------------------------------------------------
+brain:
+  engine: transformers               # 推理引擎：transformers / vllm / api
+  model_path: ''                     # 本地模型路径
+  api_url: ''                        # API 地址（engine=api 时使用）
+  api_key: ''                        # API 密钥
+  api_model: ''                      # API 模型名称
+  system_prompt_path: assets/prompts/system.txt  # 系统提示词文件路径
+  temperature: 0.7                   # 采样温度
+  max_tokens: 4096                   # 最大生成 token 数
+  top_p: 0.9                         # 核采样概率
+  top_k: 50                          # Top-K 采样
+  min_p: 0.0                         # Min-P 采样阈值
+  repetition_penalty: 1.0            # 重复惩罚系数
+  frequency_penalty: 0.0             # 频率惩罚
+  presence_penalty: 0.0              # 存在惩罚
+  do_sample: true                    # 是否启用采样
+  num_beams: 1                       # Beam Search 数量
+  stop_sequences: []                 # 停止序列列表
+  context_length: 8192               # 上下文长度
+  max_model_len: 8192                # 模型最大长度（vllm）
+  gpu_memory_utilization: 0.85       # GPU 显存利用率（vllm）
+  enable_thinking: false             # 启用思考模式
+  stream: true                       # 流式输出
+
+# ------------------------------------------------------------
+# 感知模块
+# ------------------------------------------------------------
+perception:
+  # TTS 语音合成
+  tts:
+    model_path: ''                   # SoVITS 模型路径
+    emotion_refs_dir: assets/emotion_refs  # 情感参考音频目录
+    gpt_weights: ''                  # GPT 权重路径
+    sovits_weights: ''               # SoVITS 权重路径
+    output_device: 0                 # 音频输出设备索引
+    output_dir: data/tts_output      # TTS 输出目录
+    speed: 1.0                       # 语速倍率
+    volume: 1.0                      # 音量倍率
+    emotion_intensity: 1.0           # 情感强度
+    timeout: 30                      # 请求超时（秒）
+    retry_count: 2                   # 失败重试次数
+    retry_delay: 1.0                 # 重试间隔（秒）
+    output_format: wav               # 输出音频格式
+    ref_audio_dir: assets/emotion_refs  # 参考音频目录
+
+  # ASR 语音识别
+  asr:
+    model_size: medium               # Whisper 模型大小
+    model_path: ''                   # 模型路径
+    device: cuda                     # 推理设备
+    compute_type: int8               # 计算精度
+    mic_device: 0                    # 麦克风设备索引
+    mic_mode: push_to_talk           # 麦克风模式：push_to_talk / always_on
+    ptt_key: T                       # 按键说话的按键
+    vad_threshold: 0.2               # VAD 阈值
+    language: zh                     # 识别语言
+    beam_size: 5                     # Beam Search 大小
+    best_of: 5                       # 候选数量
+    patience: 1.0                    # Beam Search 耐心系数
+    initial_prompt: ''               # 初始提示词
+    suppress_tokens: []              # 抑制的 token 列表
+
+# ------------------------------------------------------------
+# 行为引擎（主动消息）
+# ------------------------------------------------------------
+behavior:
+  enabled: false                     # 启用主动行为
+  interval_minutes: 30               # 触发间隔（分钟）
+  trigger_type: interval             # 触发类型：interval / idle / cron
+  idle_timeout_minutes: 10           # 空闲超时触发（分钟）
+  cron_expression: ''                # Cron 表达式（trigger_type=cron 时使用）
+  message_templates_enabled: true    # 启用模板消息
+  llm_generation_enabled: false      # 启用 LLM 生成消息
+  max_daily_messages: 50             # 每日最大主动消息数
+  quiet_hours_start: '23:00'         # 安静时段开始
+  quiet_hours_end: '07:00'           # 安静时段结束
+  categories:                        # 消息类别
+    - 问候
+    - 关心
+    - 分享
+    - 思念
+
+# ------------------------------------------------------------
+# 记忆系统
+# ------------------------------------------------------------
+memory:
+  enabled: false                     # 启用记忆系统
+  collection_name: yuexia_memories_v1  # 向量数据库集合名
+  db_path: data/chromadb             # ChromaDB 存储路径
+  embedding_model: m3e-base          # 嵌入模型
+  auto_persist: true                 # 自动持久化
+  retrieval_count: 5                 # 每次检索记忆条数
+  similarity_threshold: 0.7          # 相似度阈值
+  auto_persist_interval: 300         # 自动持久化间隔（秒）
+  max_memories: 10000                # 最大记忆条数
+
+# ------------------------------------------------------------
+# 会话管理
+# ------------------------------------------------------------
+session:
+  max_history_messages: 40           # 最大历史消息数
+  auto_save_interval: 30             # 自动保存间隔（秒）
+  auto_title_generation: true        # 自动生成会话标题
+  max_message_length: 10000          # 单条消息最大长度
+  export_format: json                # 导出格式
+
+# ------------------------------------------------------------
+# 日记系统
+# ------------------------------------------------------------
+diary:
+  output_dir: data/diary             # 日记输出目录
+  enabled: true                      # 启用日记功能
+  auto_generate: false               # 自动生成日记
+  generation_time: '23:00'           # 自动生成时间
+
+# ------------------------------------------------------------
+# 动作模块
+# ------------------------------------------------------------
+action:
+  browser:
+    headless: false                  # 无头浏览器模式
+  screen:
+    enabled: false                   # 启用屏幕感知
+    fps: 1                           # 截屏帧率
+    interval: 30                     # 截屏间隔（秒）
+    mode: screenshot                 # 感知模式
+
+# ------------------------------------------------------------
+# 界面（Live2D 窗口）
+# ------------------------------------------------------------
+face:
+  always_on_top: true                # 窗口置顶
+  transparent: false                 # 窗口透明
+  width: 393                         # 窗口宽度
+  height: 605                        # 窗口高度
+  main_window:
+    width: 902                       # 主窗口宽度
+    height: 660                      # 主窗口高度
+
+# ------------------------------------------------------------
+# 安全设置
+# ------------------------------------------------------------
+security:
+  api_access_control: false          # 启用 API 访问控制
+  allowed_origins:                   # 允许的跨域来源
+    - http://localhost:5173
+  log_level: INFO                    # 安全日志级别
+  max_request_size_mb: 10            # 最大请求体大小（MB）
+  rate_limit_per_minute: 60          # 每分钟请求限制
+
+# ------------------------------------------------------------
+# 网络设置
+# ------------------------------------------------------------
+network:
+  proxy_url: ''                      # 代理地址
+  request_timeout: 30                # 请求超时（秒）
+  connect_timeout: 10                # 连接超时（秒）
+  retry_count: 3                     # 重试次数
+  pool_size: 10                      # 连接池大小
+  pool_max_size: 20                  # 连接池最大大小

@@ -3,7 +3,8 @@ import { api } from '../api/client'
 import { useConfigStore, useSocketStore } from '../stores'
 
 const ACCENT_COLORS = ['#60cdff', '#ff6060', '#60ff8b', '#ffc460', '#c260ff']
-const ENGINES = ['vllm', 'transformers', 'llama.cpp'] as const
+const ENGINES = ['transformers', 'vllm', 'api'] as const
+const TTS_ENGINES = ['local', 'api'] as const
 const EMBEDDING_MODELS = ['text-embedding-3-small', 'm3e-base', 'bge-large-zh'] as const
 const ASR_SIZES = ['tiny', 'base', 'small', 'medium', 'large-v3'] as const
 const COMPUTE_TYPES = ['float16', 'int8_float16', 'int8'] as const
@@ -35,7 +36,10 @@ export default function ConfigPage() {
     if (!cfg) return
     if (cfg.general?.accent_color) document.documentElement.style.setProperty('--accent-blue', cfg.general.accent_color)
     document.documentElement.classList.toggle('light', !(cfg.general?.dark_mode ?? true))
-  }, [cfg?.general?.accent_color, cfg?.general?.dark_mode])
+    if (cfg.general?.font_size) document.documentElement.style.setProperty('--font-size', `${cfg.general.font_size}px`)
+    if (cfg.general?.sidebar_width) document.documentElement.style.setProperty('--sidebar-width', `${cfg.general.sidebar_width}px`)
+    document.documentElement.style.setProperty('--transition-duration', cfg.general?.animation_enabled === false ? '0s' : '0.2s')
+  }, [cfg?.general?.accent_color, cfg?.general?.dark_mode, cfg?.general?.font_size, cfg?.general?.sidebar_width, cfg?.general?.animation_enabled])
 
   useEffect(() => {
     return () => { eventsSocket?.off('mic_level') }
@@ -126,18 +130,34 @@ export default function ConfigPage() {
                     {ENGINES.map(e => (
                       <button key={e} onClick={() => updateField('brain.engine', e)}
                         className={`flex-1 py-2 text-xs font-medium rounded transition-colors ${cfg.brain?.engine === e ? 'bg-white/10 shadow text-white border border-white/10' : 'text-gray-500 hover:text-white'}`}>
-                        {e === 'vllm' ? 'vLLM (CUDA)' : e === 'transformers' ? 'Transformers' : 'Llama.cpp'}
+                        {e === 'vllm' ? 'vLLM (CUDA)' : e === 'transformers' ? 'Transformers' : 'API 调用'}
                       </button>
                     ))}
                   </div>
                 </div>
-                <Field label="本地模型路径">
-                  <input className="input-field" value={cfg.brain?.model_path || ''} onChange={e => updateField('brain.model_path', e.target.value)} />
-                </Field>
-                <div className="flex items-center justify-between py-2 border-b border-white/5">
-                  <div><div className="text-sm">GPU 显存占用</div><div className="text-xs text-gray-500">限制 VRAM 使用 (0.1 - 0.95)</div></div>
-                  <input type="number" step={0.05} className="input-field w-20 text-center text-sm" value={cfg.brain?.gpu_memory_utilization ?? 0.85} onChange={e => updateField('brain.gpu_memory_utilization', +e.target.value)} />
-                </div>
+                {cfg.brain?.engine === 'api' ? (
+                  <>
+                    <Field label="API 地址">
+                      <input className="input-field" value={cfg.brain?.api_url || ''} placeholder="https://api.openai.com" onChange={e => updateField('brain.api_url', e.target.value)} />
+                    </Field>
+                    <Field label="API Key">
+                      <input className="input-field" type="password" value={cfg.brain?.api_key || ''} onChange={e => updateField('brain.api_key', e.target.value)} />
+                    </Field>
+                    <Field label="模型名称">
+                      <input className="input-field" value={cfg.brain?.api_model || ''} placeholder="gpt-4o" onChange={e => updateField('brain.api_model', e.target.value)} />
+                    </Field>
+                  </>
+                ) : (
+                  <>
+                    <Field label="本地模型路径">
+                      <input className="input-field" value={cfg.brain?.model_path || ''} onChange={e => updateField('brain.model_path', e.target.value)} />
+                    </Field>
+                    <div className="flex items-center justify-between py-2 border-b border-white/5">
+                      <div><div className="text-sm">GPU 显存占用</div><div className="text-xs text-gray-500">限制 VRAM 使用 (0.1 - 0.95)</div></div>
+                      <input type="number" step={0.05} className="input-field w-20 text-center text-sm" value={cfg.brain?.gpu_memory_utilization ?? 0.85} onChange={e => updateField('brain.gpu_memory_utilization', +e.target.value)} />
+                    </div>
+                  </>
+                )}
                 <Field label="启用思考">
                   <Toggle checked={cfg.brain?.enable_thinking ?? false} onChange={v => updateField('brain.enable_thinking', v)} />
                 </Field>
@@ -148,6 +168,11 @@ export default function ConfigPage() {
                 <SliderField label="Top_P" value={cfg.brain?.top_p ?? 0.9} min={0} max={1} step={0.05} onChange={v => updateField('brain.top_p', v)} />
                 <SliderField label="最大 Tokens" value={cfg.brain?.max_tokens ?? 4096} min={512} max={8192} step={512} onChange={v => updateField('brain.max_tokens', v)} />
                 <SliderField label="上下文长度" value={cfg.brain?.context_length ?? 8192} min={2048} max={32768} step={1024} onChange={v => updateField('brain.context_length', v)} fmt={v => v >= 1024 ? `${Math.round(v/1024)}k` : String(v)} />
+                <SliderField label="Repetition Penalty" value={cfg.brain?.repetition_penalty ?? 1.0} min={1} max={2} step={0.05} onChange={v => updateField('brain.repetition_penalty', v)} />
+                <SliderField label="Frequency Penalty" value={cfg.brain?.frequency_penalty ?? 0} min={-2} max={2} step={0.1} onChange={v => updateField('brain.frequency_penalty', v)} />
+                <SliderField label="Presence Penalty" value={cfg.brain?.presence_penalty ?? 0} min={-2} max={2} step={0.1} onChange={v => updateField('brain.presence_penalty', v)} />
+                <SliderField label="Top_K" value={cfg.brain?.top_k ?? 50} min={1} max={200} step={1} onChange={v => updateField('brain.top_k', v)} />
+                <SliderField label="Min_P" value={cfg.brain?.min_p ?? 0} min={0} max={1} step={0.05} onChange={v => updateField('brain.min_p', v)} />
               </div>
             </div>
           </Section>
@@ -175,22 +200,95 @@ export default function ConfigPage() {
               </div>
             </div>
           </Section>
-        </div>
 
-        {/* Right column: TTS + ASR */}
+          {/* Session Management */}
+          <Section title="会话管理" icon="forum" desc="会话历史与自动保存">
+            <div className="grid grid-cols-2 gap-4">
+              <SliderField label="最大历史消息数" value={cfg.session?.max_history_messages ?? 40} min={10} max={200} step={10} onChange={v => updateField('session.max_history_messages', v)} />
+              <SliderField label="自动保存间隔 (秒)" value={cfg.session?.auto_save_interval ?? 30} min={5} max={300} step={5} onChange={v => updateField('session.auto_save_interval', v)} />
+              <SliderField label="消息最大长度" value={cfg.session?.max_message_length ?? 10000} min={1000} max={50000} step={1000} onChange={v => updateField('session.max_message_length', v)} />
+              <div className="flex items-center gap-2">
+                <Toggle checked={cfg.session?.auto_title_generation ?? true} onChange={v => updateField('session.auto_title_generation', v)} />
+                <span className="text-sm">自动生成标题</span>
+              </div>
+            </div>
+          </Section>
+
+          {/* Network */}
+          <Section title="网络配置" icon="language" desc="代理、超时与连接池">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <Toggle checked={cfg.network?.proxy_enabled ?? false} onChange={v => updateField('network.proxy_enabled', v)} />
+                <span className="text-sm">启用代理</span>
+              </div>
+              <Field label="代理地址">
+                <input className="input-field" value={cfg.network?.proxy_url || ''} placeholder="http://127.0.0.1:7890" disabled={!(cfg.network?.proxy_enabled)} onChange={e => updateField('network.proxy_url', e.target.value)} style={{ opacity: cfg.network?.proxy_enabled ? 1 : 0.4 }} />
+              </Field>
+              <SliderField label="请求超时 (秒)" value={cfg.network?.request_timeout ?? 30} min={5} max={120} step={5} onChange={v => updateField('network.request_timeout', v)} />
+              <SliderField label="连接超时 (秒)" value={cfg.network?.connect_timeout ?? 10} min={1} max={60} step={1} onChange={v => updateField('network.connect_timeout', v)} />
+              <SliderField label="重试次数" value={cfg.network?.retry_count ?? 3} min={0} max={10} step={1} onChange={v => updateField('network.retry_count', v)} />
+            </div>
+          </Section>
+
+          {/* Security */}
+          <Section title="安全配置" icon="shield" desc="访问控制与日志">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <Toggle checked={cfg.security?.api_access_control ?? false} onChange={v => updateField('security.api_access_control', v)} />
+                <span className="text-sm">API 访问控制</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">日志级别</span>
+                <select className="input-field w-32 py-1 text-xs" value={cfg.security?.log_level || 'INFO'} onChange={e => updateField('security.log_level', e.target.value)}>
+                  <option value="DEBUG">DEBUG</option>
+                  <option value="INFO">INFO</option>
+                  <option value="WARNING">WARNING</option>
+                  <option value="ERROR">ERROR</option>
+                </select>
+              </div>
+              <SliderField label="请求大小限制 (MB)" value={cfg.security?.max_request_size_mb ?? 10} min={1} max={100} step={1} onChange={v => updateField('security.max_request_size_mb', v)} />
+              <SliderField label="每分钟请求限制" value={cfg.security?.rate_limit_per_minute ?? 60} min={10} max={300} step={10} onChange={v => updateField('security.rate_limit_per_minute', v)} />
+            </div>
+          </Section>
+        </div>
         <div className="col-span-4 space-y-6">
           {/* TTS */}
-          <Section title="语音合成 (GPT-SoVITS)" icon="record_voice_over" desc="">
+          <Section title="语音合成 (TTS)" icon="record_voice_over" desc="">
             <div className="space-y-4">
-              <Field label="API 地址">
-                <input className="input-field" value={cfg.perception?.tts?.api_url || ''} onChange={e => updateField('perception.tts.api_url', e.target.value)} />
-              </Field>
-              <Field label="SoVITS Weights (.pth)">
-                <input className="input-field font-mono text-xs" value={cfg.perception?.tts?.sovits_weights || cfg.perception?.tts?.model_path || ''} onChange={e => updateField('perception.tts.sovits_weights', e.target.value)} />
-              </Field>
-              <Field label="GPT Weights (.ckpt)">
-                <input className="input-field font-mono text-xs" value={cfg.perception?.tts?.gpt_weights || ''} onChange={e => updateField('perception.tts.gpt_weights', e.target.value)} />
-              </Field>
+              <div>
+                <label className="block text-xs text-gray-500 mb-2">TTS 模式</label>
+                <div className="flex p-1 bg-black/30 rounded-lg border border-white/5">
+                  {TTS_ENGINES.map(e => (
+                    <button key={e} onClick={() => updateField('perception.tts.engine', e)}
+                      className={`flex-1 py-2 text-xs font-medium rounded transition-colors ${(cfg.perception?.tts?.engine || 'local') === e ? 'bg-white/10 shadow text-white border border-white/10' : 'text-gray-500 hover:text-white'}`}>
+                      {e === 'local' ? '本地模型' : 'API 调用'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {(cfg.perception?.tts?.engine || 'local') === 'local' ? (
+                <>
+                  <Field label="SoVITS Weights (.pth)">
+                    <input className="input-field font-mono text-xs" value={cfg.perception?.tts?.sovits_weights || cfg.perception?.tts?.model_path || ''} onChange={e => updateField('perception.tts.sovits_weights', e.target.value)} />
+                  </Field>
+                  <Field label="GPT Weights (.ckpt)">
+                    <input className="input-field font-mono text-xs" value={cfg.perception?.tts?.gpt_weights || ''} onChange={e => updateField('perception.tts.gpt_weights', e.target.value)} />
+                  </Field>
+                  <SliderField label="语速" value={cfg.perception?.tts?.speed ?? 1.0} min={0.5} max={2} step={0.1} onChange={v => updateField('perception.tts.speed', v)} />
+                  <SliderField label="音量" value={cfg.perception?.tts?.volume ?? 1.0} min={0} max={2} step={0.1} onChange={v => updateField('perception.tts.volume', v)} />
+                  <SliderField label="情感强度" value={cfg.perception?.tts?.emotion_intensity ?? 1.0} min={0} max={2} step={0.1} onChange={v => updateField('perception.tts.emotion_intensity', v)} />
+                </>
+              ) : (
+                <>
+                  <Field label="API 地址">
+                    <input className="input-field" value={cfg.perception?.tts?.api_url || ''} onChange={e => updateField('perception.tts.api_url', e.target.value)} />
+                  </Field>
+                  <Field label="API Key">
+                    <input className="input-field" type="password" value={cfg.perception?.tts?.api_key || ''} onChange={e => updateField('perception.tts.api_key', e.target.value)} />
+                  </Field>
+                </>
+              )}
+              <SliderField label="合成超时 (秒)" value={cfg.perception?.tts?.timeout ?? 30} min={5} max={120} step={5} onChange={v => updateField('perception.tts.timeout', v)} />
               <div className="border-t border-white/5 pt-3">
                 <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">参考音频映射</label>
                 <div className="space-y-2 mt-2 max-h-[180px] overflow-y-auto pr-1">
@@ -269,6 +367,35 @@ export default function ConfigPage() {
                 <Toggle checked={cfg.action?.screen?.enabled ?? false} onChange={v => updateField('action.screen.enabled', v)} />
               </div>
               <SliderField label="截图间隔 (秒)" value={cfg.action?.screen?.interval ?? 30} min={5} max={120} step={5} onChange={v => updateField('action.screen.interval', v)} />
+            </div>
+          </Section>
+
+          {/* Behavior Engine */}
+          <Section title="行为引擎" icon="smart_toy" desc="主动消息推送配置">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div><div className="text-sm">启用行为引擎</div><div className="text-xs text-gray-500">定时推送主动消息</div></div>
+                <Toggle checked={cfg.behavior?.enabled ?? false} onChange={v => updateField('behavior.enabled', v)} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">触发类型</span>
+                <select className="input-field w-32 py-1 text-xs" value={cfg.behavior?.trigger_type || 'interval'} onChange={e => updateField('behavior.trigger_type', e.target.value)}>
+                  <option value="interval">定时</option>
+                  <option value="idle">无输入</option>
+                  <option value="cron">Cron</option>
+                </select>
+              </div>
+              <SliderField label="定时间隔 (分钟)" value={cfg.behavior?.interval_minutes ?? 30} min={1} max={120} step={1} onChange={v => updateField('behavior.interval_minutes', v)} />
+              <SliderField label="无输入等待 (分钟)" value={cfg.behavior?.idle_timeout_minutes ?? 10} min={1} max={60} step={1} onChange={v => updateField('behavior.idle_timeout_minutes', v)} />
+              <SliderField label="每日最大消息数" value={cfg.behavior?.max_daily_messages ?? 50} min={1} max={200} step={1} onChange={v => updateField('behavior.max_daily_messages', v)} />
+              <div className="flex items-center justify-between">
+                <span className="text-sm">模板消息</span>
+                <Toggle checked={cfg.behavior?.message_templates_enabled ?? true} onChange={v => updateField('behavior.message_templates_enabled', v)} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">LLM 生成</span>
+                <Toggle checked={cfg.behavior?.llm_generation_enabled ?? false} onChange={v => updateField('behavior.llm_generation_enabled', v)} />
+              </div>
             </div>
           </Section>
         </div>

@@ -1,0 +1,96 @@
+/* Markdown 渲染样式 — 覆盖 TailwindCSS Preflight 重置 */
+.markdown-body {
+  line-height: 1.7;
+  word-wrap: break-word;
+  color: inherit;
+  font-size: 0.875rem;
+}
+
+/* 段落 */
+.markdown-body p {
+  margin: 0.5em 0;
+}
+.markdown-body p:first-child { margin-top: 0; }
+.markdown-body p:last-child { margin-bottom: 0; }
+
+/* 标题 — Tailwind Preflight 会把 h1-h6 重置为 font-size:inherit, font-weight:inherit */
+.markdown-body h1 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin: 0.8em 0 0.4em;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.2em;
+}
+.markdown-body h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin: 0.7em 0 0.3em;
+  color: var(--text-primary);
+}
+.markdown-body h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+  color: var(--text-primary);
+}
+.markdown-body h4 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0.5em 0 0.2em;
+  color: var(--text-primary);
+}
+
+/* 加粗/斜体 — Tailwind Preflight 不重置这些，但显式声明更安全 */
+.markdown-body strong { font-weight: 700; }
+.markdown-body em { font-style: italic; }
+
+/* 无序列表 — Tailwind Preflight 移除了 list-style 和 padding */
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.4em 0;
+}
+.markdown-body ul ul {
+  list-style-type: circle;
+}
+
+/* 有序列表 */
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.4em 0;
+}
+
+.markdown-body li {
+  margin: 0.2em 0;
+}
+.markdown-body li > p {
+  margin: 0;
+}
+
+/* 引用块 */
+.markdown-body blockquote {
+  border-left: 3px solid var(--accent-blue);
+  padding-left: 0.8em;
+  margin: 0.5em 0;
+  color: var(--text-secondary);
+}
+
+/* 分割线 — Tailwind Preflight 改了 hr 样式 */
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 0.8em 0;
+}
+
+/* 删除线 */
+.markdown-body del {
+  color: var(--text-secondary);
+}
+
+/* highlight.js 覆盖 */
+.markdown-body pre code.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}

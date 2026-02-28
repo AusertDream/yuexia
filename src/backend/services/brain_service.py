@@ -40,8 +40,15 @@ class BrainService:
 
         self._engine_lock = threading.Lock()
         self._engine_loading = False
+        self._inferring = False  # 推理状态标志，供行为引擎检查
+        self.behavior_engine = None
 
         log.info("BrainService 初始化完成（引擎延迟加载）")
+
+    @property
+    def is_inferring(self) -> bool:
+        """当前是否正在推理，供行为引擎检查"""
+        return self._inferring
 
     def _do_load_engine(self):
         """实际加载引擎逻辑，调用方需持有 _engine_lock"""
@@ -57,6 +64,8 @@ class BrainService:
             self.prompt_mgr = PromptManager()
             self.diary = DiaryWriter()
             log.info("LLM 引擎已加载")
+            # 引擎加载完成后启动行为引擎
+            self._start_behavior_engine()
         except Exception:
             self.engine = None
             self.memory = None
@@ -65,6 +74,19 @@ class BrainService:
             raise
         finally:
             self._engine_loading = False
+
+    def _start_behavior_engine(self):
+        """如果配置启用，启动行为引擎"""
+        if not get("behavior.enabled", False):
+            log.info("行为引擎未启用（behavior.enabled=false）")
+            return
+        try:
+            from src.backend.brain.behavior_engine import BehaviorEngine
+            self.behavior_engine = BehaviorEngine(self.socketio, self)
+            self.behavior_engine.start()
+        except Exception:
+            log.warning("行为引擎启动失败", exc_info=True)
+            self.behavior_engine = None
 
     def _ensure_engine(self):
         """延迟加载 LLM 引擎，线程安全"""
@@ -77,6 +99,8 @@ class BrainService:
 
     def chat_stream(self, user_input: str):
         """同步 generator，yield dict。供 SSE 端点消费。"""
+        if self.behavior_engine:
+            self.behavior_engine.notify_user_input()
         if self._engine_loading:
             yield {"type": "error", "text": "AI 引擎正在加载中，请稍后再试"}
             return
@@ -98,6 +122,7 @@ class BrainService:
 
     async def _stream_to_queue(self, user_input: str, q: queue.Queue):
         """核心推理流程，复用 src/brain/brain.py._think_and_reply 逻辑"""
+        self._inferring = True
         try:
             mem_ctx = self.memory.query(user_input) if self.memory else []
             messages = self.prompt_mgr.build_messages(user_input, self.history, mem_ctx)
@@ -123,12 +148,13 @@ class BrainService:
             # 更新历史
             self.history.append({"role": "user", "content": user_input})
             self.history.append({"role": "assistant", "content": full_reply, "tts_path": ""})
-            if len(self.history) > 40:
-                self.history = self.history[-30:]
+            max_hist = get("session.max_history_messages", 40)
+            if len(self.history) > max_hist:
+                self.history = self.history[-int(max_hist * 0.75):]
 
             self.session_mgr.save_messages(self.history)
-            self.socketio.emit("user_message", {"text": user_input}, namespace="/ws/events")
-            self.socketio.emit("ai_message", {"text": full_reply}, namespace="/ws/events")
+            await self.socketio.emit("user_message", {"text": user_input}, namespace="/ws/events")
+            await self.socketio.emit("ai_message", {"text": full_reply}, namespace="/ws/events")
             if self.memory:
                 self.memory.add(f"用户: {user_input}\n{get('ai_name', 'AI')}: {full_reply}")
 
@@ -137,12 +163,19 @@ class BrainService:
             # 触发 TTS（异步，不阻塞流）
             self._trigger_tts(full_reply, emotion)
             # 推送表情更新
-            self.socketio.emit("expression", {"emotion": emotion}, namespace="/ws/events")
+            await self.socketio.emit("expression", {"emotion": emotion}, namespace="/ws/events")
+            # 日记记录检查
+            if self.diary and get("diary.enabled", True):
+                try:
+                    await self.diary.write(self.history, self.engine)
+                except Exception:
+                    log.debug("日记写入跳过", exc_info=True)
 
         except Exception as e:
             log.exception("推理异常")
             q.put({"type": "error", "text": str(e)})
         finally:
+            self._inferring = False
             q.put(None)
 
     def _trigger_tts(self, text: str, emotion: str):
@@ -151,3 +184,62 @@ class BrainService:
         perc = get_perception()
         if perc:
             asyncio.run_coroutine_threadsafe(perc.synthesize_and_notify(text, emotion), self._loop)
+
+    def reload(self):
+        """重新加载引擎，失败时保留旧引擎继续服务"""
+        log.info("开始重新加载引擎...")
+        old_engine = self.engine
+        old_memory = self.memory
+        old_prompt_mgr = self.prompt_mgr
+        old_diary = self.diary
+        old_behavior = self.behavior_engine
+
+        try:
+            # 先创建新引擎
+            new_engine = create_engine()
+            new_memory = None
+            if get("memory.enabled", False):
+                try:
+                    new_memory = Memory()
+                except Exception:
+                    log.warning("Memory 重新初始化失败，已禁用", exc_info=True)
+            new_prompt_mgr = PromptManager()
+            new_diary = DiaryWriter()
+
+            # 新引擎创建成功，替换旧引擎
+            self.engine = new_engine
+            self.memory = new_memory
+            self.prompt_mgr = new_prompt_mgr
+            self.diary = new_diary
+
+            # 停止旧的行为引擎
+            if old_behavior and old_behavior.is_running:
+                old_behavior.stop()
+
+            # 异步关闭旧引擎，释放 GPU 显存和连接池
+            if old_engine is not None and hasattr(old_engine, 'shutdown'):
+                try:
+                    asyncio.run_coroutine_threadsafe(old_engine.shutdown(), self._loop)
+                    log.info("旧引擎已提交异步关闭")
+                except Exception:
+                    log.warning("旧引擎关闭失败", exc_info=True)
+
+            # 启动新的行为引擎
+            self._start_behavior_engine()
+
+            log.info("引擎重新加载完成")
+        except Exception:
+            # 新引擎创建失败，保留旧引擎
+            self.engine = old_engine
+            self.memory = old_memory
+            self.prompt_mgr = old_prompt_mgr
+            self.diary = old_diary
+            self.behavior_engine = old_behavior
+            log.error("引擎重新加载失败，保留旧引擎继续服务", exc_info=True)
+            raise
+
+    def shutdown(self):
+        """关闭 BrainService，停止行为引擎"""
+        if self.behavior_engine and self.behavior_engine.is_running:
+            self.behavior_engine.stop()
+            log.info("行为引擎已随 BrainService 关闭")

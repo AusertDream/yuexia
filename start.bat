@@ -25,13 +25,13 @@ set "TTS_PID="
 set "BACKEND_PID="
 set "FRONTEND_PID="
 
+set "PYTHONIOENCODING=utf-8"
 echo [YueXia] Starting TTS service (port %TTS_PORT%)...
-start "" /B cmd /c "chcp 65001 >nul && cd /d %SOVITS_DIR% && runtime\python.exe api_v2.py -a 127.0.0.1 -p %TTS_PORT% -c GPT_SoVITS/configs/tts_infer.yaml >%ROOT%logs\%TS%\tts.log 2>&1"
+start "" /B cmd /c "chcp 65001 >nul && cd /d %SOVITS_DIR% && set PYTHONIOENCODING=utf-8 && runtime\python.exe api_v2.py -a 127.0.0.1 -p %TTS_PORT% -c GPT_SoVITS/configs/tts_infer.yaml >%ROOT%logs\%TS%\tts.log 2>&1"
 timeout /t 5 /nobreak >nul
 
 echo [YueXia] Starting Backend service (port %BACKEND_PORT%)...
 set "YUEXIA_ROOT=%ROOT%"
-set "PYTHONIOENCODING=utf-8"
 start "" /B cmd /c "chcp 65001 >nul && cd /d %ROOT% && conda run -n yuexia python -m src.backend.app >%ROOT%logs\%TS%\backend.log 2>&1"
 
 echo [YueXia] Starting Frontend service (port %FRONTEND_PORT%)...

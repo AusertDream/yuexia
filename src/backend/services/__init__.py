@@ -1,5 +1,5 @@
 """后端服务初始化 — 后台线程加载 + 状态追踪"""
-import os
+import sys
 from src.backend.core.logger import get_logger
 
 log = get_logger("services")
@@ -56,7 +56,7 @@ def boot_services(socketio):
         _loading_status["brain"] = f"error: {e}"
         log.exception("BrainService 初始化失败")
 
-    # 4. 预加载 LLM 引擎（失败则终止进程）
+    # 4. 预加载 LLM 引擎（失败则标记不可用）
     _loading_status["engine"] = "loading"
     try:
         if _brain_service:
@@ -64,15 +64,28 @@ def boot_services(socketio):
             _loading_status["engine"] = "ok"
             log.info("LLM 引擎预加载完成")
         else:
-            log.error("BrainService 未初始化，无法加载引擎，进程退出")
-            os._exit(1)
+            _loading_status["engine"] = "error: BrainService 未初始化"
+            log.error("BrainService 未初始化，无法加载引擎")
+            sys.exit(1)
     except Exception as e:
-        log.exception("LLM 引擎预加载失败，进程退出")
-        os._exit(1)
+        _loading_status["engine"] = f"error: {e}"
+        log.exception("LLM 引擎预加载失败")
+        sys.exit(1)
 
     _ready = True
     log.info(f"所有服务加载完成: {_loading_status}")
-    socketio.emit("services_ready", _loading_status, namespace="/ws/events")
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                socketio.emit("services_ready", _loading_status, namespace="/ws/events"),
+                loop
+            )
+        else:
+            loop.run_until_complete(socketio.emit("services_ready", _loading_status, namespace="/ws/events"))
+    except Exception:
+        log.warning("发送 services_ready 事件失败", exc_info=True)
 
 
 def is_ready():

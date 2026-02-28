@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { io, Socket } from 'socket.io-client'
 import type { LogEntry } from '../types'
+import { useChatStore, genMsgId } from './useChatStore'
 
 // 事件类型定义
 type TtsDoneHandler = (data: { path: string }) => void
@@ -8,6 +9,7 @@ type AsrResultHandler = (data: { text: string }) => void
 type UserMessageHandler = (data: { text: string }) => void
 type AiMessageHandler = (data: { text: string }) => void
 type ExpressionHandler = (data: { emotion: string }) => void
+type ProactiveMessageHandler = (data: { text: string }) => void
 
 interface SocketState {
   // 连接实例
@@ -32,6 +34,8 @@ interface SocketState {
   offAiMessage: (handler: AiMessageHandler) => void
   onExpression: (handler: ExpressionHandler) => void
   offExpression: (handler: ExpressionHandler) => void
+  onProactiveMessage: (handler: ProactiveMessageHandler) => void
+  offProactiveMessage: (handler: ProactiveMessageHandler) => void
   // 清除日志
   clearLogs: () => void
 }
@@ -55,6 +59,26 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     })
     eventsSocket.on('connect', () => set({ eventsConnected: true }))
     eventsSocket.on('disconnect', () => set({ eventsConnected: false }))
+    // 主动消息：全局监听，转发到 chatStore
+    eventsSocket.on('proactive_message', (data: { text: string }) => {
+      useChatStore.getState().handleProactiveMessage(data.text)
+    })
+    // TTS 完成：将音频路径持久化到最后一条 assistant 消息
+    eventsSocket.on('tts_done', (data: { path: string }) => {
+      useChatStore.getState().updateLastAssistantTtsPath(data.path)
+    })
+    // 服务加载完成通知
+    eventsSocket.on('services_ready', (data: Record<string, string>) => {
+      const parts: string[] = []
+      if (data.perception === 'ok') parts.push('语音')
+      if (data.engine === 'ok') parts.push('AI引擎')
+      if (parts.length > 0) {
+        useChatStore.getState().appendMessage({
+          id: genMsgId(), role: 'system' as any,
+          content: `${parts.join('、')}加载完成`,
+        })
+      }
+    })
 
     // 创建 logs socket
     const logsSocket = io('/ws/logs', {
@@ -121,6 +145,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   },
   offExpression: (handler) => {
     get().eventsSocket?.off('expression', handler)
+  },
+
+  // 主动消息事件
+  onProactiveMessage: (handler) => {
+    get().eventsSocket?.on('proactive_message', handler)
+  },
+  offProactiveMessage: (handler) => {
+    get().eventsSocket?.off('proactive_message', handler)
   },
 
   clearLogs: () => set({ logs: [] }),

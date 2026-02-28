@@ -1,7 +1,7 @@
 """AI 日记：对话结束后生成日记条目"""
 from pathlib import Path
 from datetime import datetime
-from src.backend.core.config import get
+from src.backend.core.config import get, resolve_path
 from src.backend.core.logger import get_logger
 
 log = get_logger("diary")
@@ -9,7 +9,7 @@ log = get_logger("diary")
 
 class DiaryWriter:
     def __init__(self):
-        self.output_dir = Path(get("diary.output_dir", "data/diary"))
+        self.output_dir = resolve_path(get("diary.output_dir", "data/diary"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     async def write(self, conversation: list[dict], engine) -> str:

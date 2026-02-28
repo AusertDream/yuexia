@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./markdown.css";
 
 :root {
   --bg-color: #0f1115;

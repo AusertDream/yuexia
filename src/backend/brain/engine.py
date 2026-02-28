@@ -1,7 +1,7 @@
-"""LLM 推理引擎：vLLM / Transformers 双模"""
+"""LLM 推理引擎：vLLM / Transformers / API 多模"""
 import uuid
-from abc import ABC, abstractmethod
 from typing import AsyncIterator
+from src.backend.brain.base_engine import BaseEngine
 from src.backend.core.config import get
 from src.backend.core.logger import get_logger
 
@@ -18,17 +18,12 @@ def _load_and_resize(path: str) -> "Image.Image":
     return img
 
 
-class LLMEngine(ABC):
-    @abstractmethod
-    async def generate(self, messages: list[dict], images: list[str] | None = None) -> AsyncIterator[str]:
-        ...
+class VLLMEngine(BaseEngine):
 
-    @abstractmethod
-    async def shutdown(self):
-        ...
+    @property
+    def engine_type(self) -> str:
+        return "vllm"
 
-
-class VLLMEngine(LLMEngine):
     def __init__(self):
         from vllm import AsyncLLMEngine as _AsyncEngine
         from vllm import AsyncEngineArgs, SamplingParams
@@ -71,6 +66,12 @@ class VLLMEngine(LLMEngine):
             temperature=get("brain.temperature", 0.7),
             max_tokens=get("brain.max_tokens", 4096),
             top_p=get("brain.top_p", 0.9),
+            repetition_penalty=get("brain.repetition_penalty", 1.0),
+            frequency_penalty=get("brain.frequency_penalty", 0.0),
+            presence_penalty=get("brain.presence_penalty", 0.0),
+            top_k=get("brain.top_k", 50),
+            min_p=get("brain.min_p", 0.0),
+            stop=get("brain.stop_sequences", None) or None,
         )
         request_id = uuid.uuid4().hex
 
@@ -87,7 +88,12 @@ class VLLMEngine(LLMEngine):
         pass
 
 
-class TransformersEngine(LLMEngine):
+class TransformersEngine(BaseEngine):
+
+    @property
+    def engine_type(self) -> str:
+        return "transformers"
+
     def __init__(self):
         import torch
         from transformers import AutoModelForImageTextToText, AutoProcessor
@@ -119,13 +125,16 @@ class TransformersEngine(LLMEngine):
             inputs = self.processor(text=text, return_tensors="pt").to(self.model.device)
         streamer = TextIteratorStreamer(self.processor, skip_prompt=True, skip_special_tokens=True)
 
+        temp = get("brain.temperature", 0.7)
         gen_kwargs = {
             **inputs,
             "streamer": streamer,
             "max_new_tokens": get("brain.max_tokens", 4096),
-            "temperature": get("brain.temperature", 0.7),
+            "temperature": temp,
             "top_p": get("brain.top_p", 0.9),
-            "do_sample": True,
+            "do_sample": get("brain.do_sample", True) if temp > 0 else False,
+            "repetition_penalty": get("brain.repetition_penalty", 1.0),
+            "top_k": get("brain.top_k", 50),
         }
         thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
         thread.start()
@@ -142,9 +151,14 @@ class TransformersEngine(LLMEngine):
         torch.cuda.empty_cache()
 
 
-def create_engine() -> LLMEngine:
+def create_engine() -> BaseEngine:
     import sys
     engine_type = get("brain.engine", "vllm")
+
+    if engine_type == "api":
+        from src.backend.brain.api_engine import APIEngine
+        return APIEngine()
+
     if engine_type == "vllm":
         if sys.platform == "win32":
             log.warning("vLLM 不支持 Windows，降级到 Transformers")

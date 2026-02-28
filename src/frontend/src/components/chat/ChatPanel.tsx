@@ -1,6 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
 import { useChatStream } from '../../hooks/useSSE'
 import { useSocketStore, useChatStore } from '../../stores'
+import { genMsgId } from '../../stores/useChatStore'
+import MarkdownRenderer from './MarkdownRenderer'
 
 export default function ChatPanel() {
   const { sessions, currentId, messages, loadSessions, switchSession, createSession, deleteSession, setMessages } = useChatStore()
@@ -61,7 +63,7 @@ export default function ChatPanel() {
     if (!input.trim() || streaming) return
     const text = input.trim()
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '' }])
+    setMessages(prev => [...prev, { id: genMsgId(), role: 'user', content: text }, { id: genMsgId(), role: 'assistant', content: '' }])
 
     sendMessage(text, chunk => {
       if (chunk.type === 'chunk') {
@@ -114,14 +116,23 @@ export default function ChatPanel() {
       {/* Messages */}
       <div className="flex-1 bg-[var(--header-bg)]/60 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          m.role === 'system' ? (
+            <div key={m.id} className="text-center py-1">
+              <span className="text-xs text-gray-500">{m.content}</span>
+            </div>
+          ) : (
+          <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
               <div className="w-8 h-8 rounded-full bg-[var(--accent-blue)]/10 mr-3 flex items-center justify-center border border-[var(--accent-blue)]/30 flex-shrink-0">
                 <span className="material-symbols-outlined text-sm text-[var(--accent-blue)]">smart_toy</span>
               </div>
             )}
             <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-[var(--bubble-user)] text-gray-200 rounded-tr-sm border border-gray-700' : 'bg-[var(--bubble-ai)] text-gray-300 rounded-tl-sm border border-gray-800'}`}>
-              {m.content}
+              {m.role === 'assistant' ? (
+                <MarkdownRenderer content={m.content} />
+              ) : (
+                <span className="whitespace-pre-wrap">{m.content}</span>
+              )}
               {m.role === 'assistant' && streaming && i === messages.length - 1 && (
                 <span className="inline-block w-1.5 h-3 bg-[var(--accent-blue)] ml-1 animate-pulse" />
               )}
@@ -132,6 +143,7 @@ export default function ChatPanel() {
               )}
             </div>
           </div>
+          )
         ))}
         <div ref={bottomRef} />
       </div>

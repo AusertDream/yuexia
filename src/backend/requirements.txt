@@ -1,8 +1,8 @@
 # Web 框架
-flask~=3.1
-flask-cors~=5.0
-flask-socketio~=5.4
-flask-swagger-ui~=4.11
+fastapi~=0.115
+uvicorn[standard]~=0.34
+python-socketio~=5.11
+python-multipart~=0.0.18
 
 # AI/ML
 transformers>=4.45,<4.50
@@ -27,6 +27,9 @@ httpx~=0.28
 # 图像
 Pillow~=11.1
 mss~=9.0
+
+# 定时任务
+apscheduler~=3.10
 
 # 配置/工具
 pyyaml~=6.0

@@ -1,5 +1,6 @@
 export interface ChatMessage {
-  role: 'user' | 'assistant'
+  id: string
+  role: 'user' | 'assistant' | 'system'
   content: string
   tts_path?: string
 }

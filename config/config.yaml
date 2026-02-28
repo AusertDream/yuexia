@@ -7,19 +7,49 @@ action:
     interval: 30
     mode: screenshot
 ai_name: 月下
+behavior:
+  categories:
+  - 问候
+  - 关心
+  - 分享
+  - 思念
+  cron_expression: ''
+  enabled: false
+  idle_timeout_minutes: 10
+  interval_minutes: 30
+  llm_generation_enabled: false
+  max_daily_messages: 50
+  message_templates_enabled: true
+  quiet_hours_end: 07:00
+  quiet_hours_start: '23:00'
+  trigger_type: interval
 brain:
+  api_key: ''
+  api_model: ''
+  api_url: ''
   context_length: 8192
+  do_sample: true
   enable_thinking: false
   engine: transformers
+  frequency_penalty: 0.0
   gpu_memory_utilization: 0.85
   max_model_len: 8192
   max_tokens: 4096
+  min_p: 0.0
   model_path: E:\models\Qwen3-VL-4B-Instruct
+  num_beams: 1
+  presence_penalty: 0.0
+  repetition_penalty: 1.0
+  stop_sequences: []
   stream: true
   system_prompt_path: assets/prompts/system.txt
   temperature: 0.7
+  top_k: 50
   top_p: 0.9
 diary:
+  auto_generate: false
+  enabled: true
+  generation_time: '23:00'
   output_dir: data/diary
 face:
   always_on_top: true
@@ -31,31 +61,78 @@ face:
   width: 393
 general:
   accent_color: '#60cdff'
+  animation_enabled: true
   dark_mode: true
+  font_size: 14
+  language: zh-CN
+  message_bubble_style: modern
+  notification_enabled: true
+  notification_sound: true
+  sidebar_width: 280
 memory:
   auto_persist: true
+  auto_persist_interval: 300
   collection_name: yuexia_memories_v1
   db_path: data/chromadb
   embedding_model: m3e-base
   enabled: false
+  max_memories: 10000
+  retrieval_count: 5
+  similarity_threshold: 0.7
+network:
+  connect_timeout: 10
+  pool_max_size: 20
+  pool_size: 10
+  proxy_enabled: false
+  proxy_url: ''
+  request_timeout: 30
+  retry_count: 3
 perception:
   asr:
+    beam_size: 5
+    best_of: 5
     compute_type: int8
     device: cuda
+    initial_prompt: ''
+    language: zh
     mic_device: 1
     mic_mode: push_to_talk
     model_path: E:\models\asr_model\faster_whisper
     model_size: medium
+    patience: 1.0
     ptt_key: T
+    suppress_tokens: []
     vad_threshold: 0.2
   tts:
+    emotion_intensity: 1.0
     emotion_refs_dir: assets/emotion_refs
+    engine: local
     gpt_weights: ''
     model_path: E:\models\sovits_model\yuexia\YueXiaModel_e8_s112.pth
     output_device: 4
     output_dir: data/tts_output
+    output_format: wav
+    ref_audio_dir: assets/emotion_refs
+    retry_count: 2
+    retry_delay: 1.0
     sovits_weights: ''
+    speed: 1.0
+    timeout: 30
+    volume: 1.0
+security:
+  allowed_origins:
+  - http://localhost:5173
+  api_access_control: false
+  log_level: INFO
+  max_request_size_mb: 10
+  rate_limit_per_minute: 60
 server:
   backend_port: 5000
   frontend_port: 5173
   tts_port: 9880
+session:
+  auto_save_interval: 30
+  auto_title_generation: true
+  export_format: json
+  max_history_messages: 40
+  max_message_length: 10000

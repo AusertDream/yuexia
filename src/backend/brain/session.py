@@ -1,23 +1,31 @@
 """会话持久化管理"""
 import json
+import re
 import secrets
 import threading
 import time
 from pathlib import Path
-from src.backend.core.config import get
+from src.backend.core.config import get, resolve_path
 from src.backend.core.logger import get_logger
 
 log = get_logger("session")
 
+_VALID_SID_RE = re.compile(r'^[0-9a-f]+$')
+
 
 class SessionManager:
     def __init__(self):
-        self.dir = Path(get("session.dir", "data/sessions"))
+        self.dir = resolve_path(get("session.dir", "data/sessions"))
         self.dir.mkdir(parents=True, exist_ok=True)
         self.index_file = self.dir / "index.json"
         self.current_id: str | None = None
         self._lock = threading.RLock()  # 并发保护锁
         self.index: list[dict] = self._load_index()
+
+    @staticmethod
+    def _validate_session_id(sid: str) -> bool:
+        """校验 session_id 只允许十六进制字符，防止路径遍历"""
+        return bool(sid) and bool(_VALID_SID_RE.match(sid))
 
     def _atomic_write(self, path: Path, content: str):
         """原子写入：先写临时文件，成功后替换原文件（Windows 兼容）"""
@@ -62,6 +70,9 @@ class SessionManager:
             return sid
 
     def load(self, sid: str) -> list[dict]:
+        if not self._validate_session_id(sid):
+            log.warning(f"非法 session_id: {sid!r}")
+            return []
         with self._lock:
             path = self.dir / f"{sid}.json"
             if not path.exists():
@@ -93,6 +104,9 @@ class SessionManager:
             self._save_index()
 
     def rename(self, sid: str, title: str):
+        if not self._validate_session_id(sid):
+            log.warning(f"非法 session_id: {sid!r}")
+            return
         with self._lock:
             path = self.dir / f"{sid}.json"
             if path.exists():
@@ -106,6 +120,9 @@ class SessionManager:
             self._save_index()
 
     def delete(self, sid: str):
+        if not self._validate_session_id(sid):
+            log.warning(f"非法 session_id: {sid!r}")
+            return
         with self._lock:
             path = self.dir / f"{sid}.json"
             if path.exists():

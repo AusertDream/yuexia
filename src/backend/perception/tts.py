@@ -4,11 +4,16 @@ import re
 import httpx
 from pathlib import Path
 from datetime import datetime
-from src.backend.core.config import get
+from src.backend.core.config import get, resolve_path
 from src.backend.core.logger import get_logger
 from src.backend.perception.emotion_pool import EmotionPool
 
 log = get_logger("tts")
+
+
+class TTSError(Exception):
+    """TTS 合成失败时抛出的异常"""
+    pass
 
 
 def _strip_emoji(text: str) -> str:
@@ -19,14 +24,17 @@ def _strip_emoji(text: str) -> str:
 class TTSEngine:
     def __init__(self):
         self.emotion_pool = EmotionPool()
-        self.output_dir = Path(get("perception.tts.output_dir", "data/tts_output"))
+        self.output_dir = resolve_path(get("perception.tts.output_dir", "data/tts_output"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        tts_port = get("server.tts_port", 9880)
-        self.api_url = f"http://127.0.0.1:{tts_port}"
-        # 持久连接池，复用连接减少延迟
+        api_url = get("perception.tts.api_url", "")
+        if not api_url:
+            tts_port = get("server.tts_port", 9880)
+            api_url = f"http://127.0.0.1:{tts_port}"
+        self.api_url = api_url.rstrip("/")
+        timeout = get("perception.tts.timeout", 60)
         self._client = httpx.AsyncClient(
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-            timeout=httpx.Timeout(60, connect=10)
+            timeout=httpx.Timeout(timeout, connect=10)
         )
         atexit.register(self._sync_close)
 
@@ -39,11 +47,13 @@ class TTSEngine:
         ref = self.emotion_pool.get_ref(emotion)
 
         output_path = self.output_dir / f"{datetime.now().strftime('%H%M%S_%f')}.wav"
+        speed = get("perception.tts.speed", 1.0)
         payload = {
             "text": text,
             "text_lang": "zh",
             "text_split_method": "cut5",
             "media_type": "wav",
+            "speed": speed,
         }
         if ref:
             payload["ref_audio_path"] = ref.get("path", "")
@@ -56,10 +66,14 @@ class TTSEngine:
                 output_path.write_bytes(r.content)
                 log.info(f"TTS 合成完成: {output_path}")
                 return str(output_path)
-            log.warning(f"TTS API 返回 {r.status_code}: {r.text[:200]}")
+            error_detail = r.text[:200] if r.text else "无响应内容"
+            log.error(f"TTS API 返回 {r.status_code}: {error_detail}")
+            raise TTSError(f"TTS 服务返回错误状态码 {r.status_code}")
+        except TTSError:
+            raise
         except Exception as e:
-            log.exception("TTS 请求失败")
-        return None
+            log.error(f"TTS 请求失败: {e}", exc_info=True)
+            raise TTSError(f"TTS 请求异常: {e}") from e
 
     async def close(self):
         """关闭连接池，释放资源"""
@@ -72,6 +86,10 @@ class TTSEngine:
         if self._client and not self._client.is_closed:
             import asyncio
             try:
-                asyncio.run(self._client.aclose())
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._client.aclose())
+                else:
+                    loop.run_until_complete(self._client.aclose())
             except Exception:
                 pass

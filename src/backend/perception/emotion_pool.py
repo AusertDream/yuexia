@@ -2,7 +2,7 @@
 from pathlib import Path
 import random
 import yaml
-from src.backend.core.config import get
+from src.backend.core.config import get, resolve_path
 from src.backend.core.logger import get_logger
 
 log = get_logger("emotion_pool")
@@ -12,7 +12,7 @@ class EmotionPool:
     """按情感目录扫描参考音频，支持 meta.yaml 配置"""
 
     def __init__(self):
-        self.refs_dir = Path(get("perception.tts.emotion_refs_dir", "assets/emotion_refs"))
+        self.refs_dir = resolve_path(get("perception.tts.emotion_refs_dir", "assets/emotion_refs"))
         self.pool: dict[str, list[dict]] = {}
         self._scan()
 

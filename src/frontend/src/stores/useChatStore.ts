@@ -2,6 +2,16 @@ import { create } from 'zustand'
 import type { Session, ChatMessage } from '../types'
 import * as sessApi from '../api/sessions'
 
+let _msgIdCounter = 0
+export function genMsgId(): string {
+  return `msg-${Date.now()}-${++_msgIdCounter}`
+}
+
+/** 确保从后端加载的消息都有唯一 id */
+function ensureIds(msgs: ChatMessage[]): ChatMessage[] {
+  return msgs.map(m => m.id ? m : { ...m, id: genMsgId() })
+}
+
 interface ChatState {
   sessions: Session[]
   currentId: string
@@ -15,6 +25,8 @@ interface ChatState {
   setMessages: (messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void
   appendMessage: (msg: ChatMessage) => void
   updateLastAssistantMessage: (updater: (content: string) => string) => void
+  updateLastAssistantTtsPath: (path: string) => void
+  handleProactiveMessage: (text: string) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -34,7 +46,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (currentId) {
         try {
           const sr = await sessApi.switchSession(currentId)
-          set({ messages: sr.data.messages })
+          set({ messages: ensureIds(sr.data.messages) })
         } catch (err) {
           console.error('加载当前会话消息失败:', err)
         }
@@ -48,7 +60,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   switchSession: async (id: string) => {
     try {
       const r = await sessApi.switchSession(id)
-      set({ currentId: id, messages: r.data.messages })
+      set({ currentId: id, messages: ensureIds(r.data.messages) })
     } catch (err) {
       console.error('切换会话失败:', err)
     }
@@ -100,5 +112,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return { messages: copy }
     })
+  },
+
+  updateLastAssistantTtsPath: (path: string) => {
+    set(state => {
+      const copy = [...state.messages]
+      for (let i = copy.length - 1; i >= 0; i--) {
+        if (copy[i].role === 'assistant') {
+          copy[i] = { ...copy[i], tts_path: path }
+          break
+        }
+      }
+      return { messages: copy }
+    })
+  },
+
+  handleProactiveMessage: (text: string) => {
+    set(state => ({
+      messages: [...state.messages, { id: genMsgId(), role: 'assistant', content: text }],
+    }))
   },
 }))
