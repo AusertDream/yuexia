@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: backendUrl, changeOrigin: true },
       '/audio': { target: backendUrl, changeOrigin: true },
+      '/photos': { target: backendUrl, changeOrigin: true },
       '/ws': { target: backendUrl, ws: true, changeOrigin: true },
       '/socket.io': { target: backendUrl, ws: true, changeOrigin: true },
     },

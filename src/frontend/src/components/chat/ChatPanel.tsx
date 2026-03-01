@@ -10,6 +10,7 @@ export default function ChatPanel() {
   const [listening, setListening] = useState(false)
   const { sendMessage, streaming, cancel } = useChatStream()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const eventsConnected = useSocketStore(s => s.eventsConnected)
 
   useEffect(() => { loadSessions() }, [loadSessions])
@@ -57,7 +58,27 @@ export default function ChatPanel() {
     rec.start()
   }
 
-  const playTts = (url: string) => { new Audio(url).play().catch(() => {}) }
+  const playTts = (url: string) => {
+    // 停止并清理之前的音频
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+
+    // 创建新的音频实例
+    const audio = new Audio(url)
+    audioRef.current = audio
+
+    audio.play().catch(() => {})
+
+    // 播放结束后清理引用
+    audio.onended = () => {
+      if (audioRef.current === audio) {
+        audioRef.current = null
+      }
+    }
+  }
 
   const send = () => {
     if (!input.trim() || streaming) return
@@ -93,9 +114,9 @@ export default function ChatPanel() {
   }
 
   return (
-    <div className="chat-panel rounded-xl flex flex-col overflow-hidden h-full shadow-[0_-5px_20px_rgba(0,0,0,0.3)]">
+    <div className="glass-chat rounded-2xl flex flex-col overflow-hidden h-full shadow-[0_-5px_20px_rgba(0,0,0,0.3)]" style={{ willChange: 'transform' }}>
       {/* Tabs */}
-      <div className="bg-[var(--panel-bg)] px-2 pt-2 border-b border-[var(--border-color)] flex items-center gap-2 overflow-x-auto custom-scrollbar">
+      <div className="bg-white/[0.08] px-2 pt-2 border-b border-[var(--glass-chat-border)] flex items-center gap-2 overflow-x-auto custom-scrollbar">
         {sessions.map(s => (
           <button key={s.id} onClick={() => switchTo(s.id)}
             className={`px-4 py-2 text-xs font-medium rounded-t-lg flex items-center gap-2 ${s.id === currentId ? 'bg-[var(--tab-active)] text-[var(--text-primary)] border-t border-x border-[var(--border-color)]' : 'text-gray-400 hover:bg-[var(--tab-active)]/50'}`}>
@@ -108,13 +129,13 @@ export default function ChatPanel() {
             }}>&times;</span>
           </button>
         ))}
-        <button onClick={newSession} className="ml-1 mb-1 self-center p-1 text-gray-500 hover:text-[var(--accent-blue)]">
+        <button onClick={newSession} className="ml-1 self-center p-1 text-gray-500 hover:text-[var(--accent-blue)]">
           <span className="material-symbols-outlined text-[18px]">add</span>
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 bg-[var(--header-bg)]/60 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+      <div className="flex-1 bg-transparent p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
         {messages.map((m, i) => (
           m.role === 'system' ? (
             <div key={m.id} className="text-center py-1">
@@ -127,7 +148,7 @@ export default function ChatPanel() {
                 <span className="material-symbols-outlined text-sm text-[var(--accent-blue)]">smart_toy</span>
               </div>
             )}
-            <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-[var(--bubble-user)] text-gray-200 rounded-tr-sm border border-gray-700' : 'bg-[var(--bubble-ai)] text-gray-300 rounded-tl-sm border border-gray-800'}`}>
+            <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-[var(--bubble-user)] text-gray-200 rounded-tr-sm border border-gray-700' : 'bg-black/20 text-gray-300 rounded-tl-sm border border-gray-800'}`} style={m.role === 'assistant' ? { textShadow: '0 1px 2px rgba(0,0,0,0.3)' } : undefined}>
               {m.role === 'assistant' ? (
                 <MarkdownRenderer content={m.content} />
               ) : (
@@ -149,8 +170,8 @@ export default function ChatPanel() {
       </div>
 
       {/* Input */}
-      <div className="p-3 bg-[var(--panel-bg)] border-t border-[var(--border-color)]">
-        <div className="relative flex items-center gap-2 bg-[var(--panel-bg-alt)] border border-[var(--border-color)] rounded-xl p-2 focus-within:ring-1 focus-within:ring-[var(--accent-blue)]">
+      <div className="p-3 bg-black/10 border-t border-[var(--border-color)]">
+        <div className="relative flex items-center gap-2 bg-white/3 border border-[var(--border-color)] rounded-xl p-2 focus-within:ring-1 focus-within:ring-[var(--accent-blue)]">
           <textarea
             className="flex-1 bg-transparent border-none p-2 text-sm text-gray-200 placeholder-gray-500 focus:ring-0 focus:outline-none resize-none"
             placeholder="发送消息给月下..."
@@ -166,7 +187,7 @@ export default function ChatPanel() {
             </button>
           )}
           <button onClick={send} disabled={streaming}
-            className="p-2 bg-[var(--accent-blue)] text-black rounded-lg hover:bg-cyan-300 transition-colors shadow-[0_0_10px_rgba(0,240,255,0.3)] disabled:opacity-50">
+            className="p-2 bg-[var(--accent-blue)] text-black rounded-lg hover:bg-cyan-300 interactive-hover disabled:opacity-50">
             <span className="material-symbols-outlined text-[20px]">send</span>
           </button>
         </div>

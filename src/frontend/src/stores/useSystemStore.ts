@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useEffect } from 'react'
 import type { SystemStatus } from '../types'
 import { api } from '../api/client'
 
@@ -7,7 +8,10 @@ interface SystemState {
   loading: boolean
   pollInterval: number
   pollTimer: number | null
+  subscriberCount: number
   // 方法
+  subscribe: () => void
+  unsubscribe: () => void
   startPolling: () => void
   stopPolling: () => void
   setPollInterval: (ms: number) => void
@@ -19,6 +23,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   loading: false,
   pollInterval: 3000,
   pollTimer: null,
+  subscriberCount: 0,
 
   fetchStatus: async () => {
     set({ loading: true })
@@ -30,19 +35,25 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     }
   },
 
+  subscribe: () => {
+    const count = get().subscriberCount + 1
+    set({ subscriberCount: count })
+    if (count === 1) get().startPolling()
+  },
+
+  unsubscribe: () => {
+    const count = Math.max(0, get().subscriberCount - 1)
+    set({ subscriberCount: count })
+    if (count === 0) get().stopPolling()
+  },
+
   startPolling: () => {
     const state = get()
-    // 避免重复启动
     if (state.pollTimer !== null) return
-
-    // 立即获取一次
     state.fetchStatus()
-
-    // 设置定时轮询
     const timer = window.setInterval(() => {
       get().fetchStatus()
     }, state.pollInterval)
-
     set({ pollTimer: timer })
   },
 
@@ -57,11 +68,19 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   setPollInterval: (ms: number) => {
     const state = get()
     set({ pollInterval: ms })
-    // 如果正在轮询，重启以应用新间隔
     if (state.pollTimer !== null) {
       state.stopPolling()
-      // 延迟启动，确保 stopPolling 完成
       setTimeout(() => get().startPolling(), 0)
     }
   },
 }))
+
+/** 组件级 hook：挂载时订阅轮询，卸载时取消 */
+export function useSystemStatus() {
+  const status = useSystemStore(s => s.status)
+  useEffect(() => {
+    useSystemStore.getState().subscribe()
+    return () => useSystemStore.getState().unsubscribe()
+  }, [])
+  return status
+}

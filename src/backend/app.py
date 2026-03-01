@@ -33,6 +33,17 @@ def create_app():
             return FileResponse(filepath)
         return JSONResponse({"error": "文件不存在"}, status_code=404)
 
+    # 聊天背景图片静态文件
+    photos_dir = os.path.join(ROOT_DIR, "data", "photos")
+    os.makedirs(photos_dir, exist_ok=True)
+
+    @app.get("/photos/{filename:path}")
+    async def serve_photo(filename: str):
+        filepath = os.path.join(photos_dir, filename)
+        if os.path.isfile(filepath):
+            return FileResponse(filepath)
+        return JSONResponse({"error": "文件不存在"}, status_code=404)
+
     # 加载配置
     config_path = os.path.join(ROOT_DIR, "config", "config.yaml")
     from src.backend.core.config import load_config

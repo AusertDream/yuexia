@@ -1,8 +1,10 @@
 """配置 API"""
 import copy
 import os
+import shutil
+import glob as globmod
 import yaml
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from src.backend.core.logger import get_logger
 
@@ -111,6 +113,19 @@ CONFIG_WHITELIST = frozenset({
     "diary.auto_generate",
     "diary.generation_time",
     "diary.output_dir",
+    # 新增日记类型配置
+    "diary.daily.enabled",
+    "diary.daily.frequency",
+    "diary.daily.prompt",
+    "diary.weekly.enabled",
+    "diary.weekly.frequency",
+    "diary.weekly.prompt",
+    "diary.monthly.enabled",
+    "diary.monthly.frequency",
+    "diary.monthly.prompt",
+    "diary.yearly.enabled",
+    "diary.yearly.frequency",
+    "diary.yearly.prompt",
 })
 
 
@@ -125,8 +140,9 @@ def _flatten_keys(d: dict, prefix: str = "") -> set[str]:
             keys.add(full_key)
     return keys
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "config", "config.yaml")
-EMOTION_REFS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "emotion_refs")
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+CONFIG_PATH = os.path.join(ROOT_DIR, "config", "config.yaml")
+EMOTION_REFS_DIR = os.path.join(ROOT_DIR, "assets", "emotion_refs")
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -150,6 +166,20 @@ def _mask_sensitive(d: dict):
             d[k] = v[:3] + "***" if len(v) > 3 else "***"
 
 
+def _filter_whitelisted(d: dict, prefix: str = "") -> dict:
+    """递归过滤，只保留白名单中的配置项"""
+    result = {}
+    for k, v in d.items():
+        full_key = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            filtered = _filter_whitelisted(v, full_key)
+            if filtered:
+                result[k] = filtered
+        elif full_key in CONFIG_WHITELIST:
+            result[k] = v
+    return result
+
+
 @config_router.get("/config")
 async def get_config():
     from src.backend.core.config import get_config
@@ -164,16 +194,15 @@ async def update_config(request: Request):
     if not isinstance(new_config, dict):
         return JSONResponse(content={"error": "请求体必须是 JSON 对象"}, status_code=400)
 
-    # 白名单检查：只允许修改指定的配置项
+    # 白名单过滤：只保留允许修改的配置项，忽略其余
     requested_keys = _flatten_keys(new_config)
     forbidden_keys = requested_keys - CONFIG_WHITELIST
     if forbidden_keys:
-        log.warning(f"拒绝修改非白名单配置项: {forbidden_keys}")
-        return JSONResponse(content={
-            "error": "禁止修改的配置项",
-            "forbidden_keys": list(forbidden_keys),
-            "allowed_keys": list(CONFIG_WHITELIST)
-        }, status_code=403)
+        log.debug(f"过滤非白名单配置项: {forbidden_keys}")
+        new_config = _filter_whitelisted(new_config)
+
+    if not new_config:
+        return JSONResponse(content={"status": "ok", "message": "无可更新的配置项"})
 
     existing = {}
     if os.path.exists(CONFIG_PATH):
@@ -200,3 +229,82 @@ async def get_emotion_refs():
                 emotion = name.split("_")[0] if "_" in name else name
                 refs.append({"emotion": emotion, "file": f})
     return JSONResponse(content=refs)
+
+
+@config_router.get("/config/chat-bg")
+async def get_chat_bg():
+    """查询当前聊天背景图片"""
+    photos_dir = os.path.join(ROOT_DIR, "data", "photos")
+    for ext in ("png", "jpg", "jpeg", "webp", "gif"):
+        matches = globmod.glob(os.path.join(photos_dir, f"chat-bg.{ext}"))
+        if matches:
+            filename = os.path.basename(matches[0])
+            return {"exists": True, "url": f"/photos/{filename}"}
+    return {"exists": False, "url": None}
+
+
+@config_router.post("/config/chat-bg")
+async def upload_chat_bg(file: UploadFile = File(...)):
+    """上传聊天背景图片"""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        return JSONResponse({"error": "只允许上传图片文件"}, status_code=400)
+    photos_dir = os.path.join(ROOT_DIR, "data", "photos")
+    os.makedirs(photos_dir, exist_ok=True)
+    # 清除旧背景
+    for old in globmod.glob(os.path.join(photos_dir, "chat-bg.*")):
+        os.remove(old)
+    # 保存新背景
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "png"
+    dest = os.path.join(photos_dir, f"chat-bg.{ext}")
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    log.info("聊天背景已更新: %s", dest)
+    return {"exists": True, "url": f"/photos/chat-bg.{ext}"}
+
+
+@config_router.delete("/config/chat-bg")
+async def delete_chat_bg():
+    """删除聊天背景图片，恢复默认"""
+    photos_dir = os.path.join(ROOT_DIR, "data", "photos")
+    deleted = False
+    for old in globmod.glob(os.path.join(photos_dir, "chat-bg.*")):
+        os.remove(old)
+        deleted = True
+    if deleted:
+        log.info("聊天背景已清除")
+    return {"exists": False, "url": None}
+
+
+@config_router.post("/diary/immediate")
+async def trigger_immediate_diary():
+    """触发立即记录日记"""
+    from src.backend.services import get_brain
+    from src.backend.brain.diary import DiaryWriter
+    from src.backend.core.config import get
+
+    brain = get_brain()
+    if not brain or not brain.history:
+        return JSONResponse(
+            content={"error": "没有可用的对话历史"},
+            status_code=400
+        )
+
+    diary_writer = DiaryWriter()
+    results = {}
+
+    # 遍历所有日记类型，生成启用的日记
+    for diary_type in ["daily", "weekly", "monthly", "yearly"]:
+        enabled = get(f"diary.{diary_type}.enabled", False)
+        if enabled:
+            try:
+                content = await diary_writer.write(
+                    brain.history,
+                    brain.engine,
+                    diary_type
+                )
+                results[diary_type] = {"status": "success", "content": content}
+            except Exception as e:
+                log.error(f"生成 {diary_type} 日记失败: {e}", exc_info=True)
+                results[diary_type] = {"status": "error", "error": str(e)}
+
+    return JSONResponse(content={"results": results})

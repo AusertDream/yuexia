@@ -1,15 +1,17 @@
-import { useSystemStore } from '../../stores'
+import type { SystemStatus } from '../../types'
 
-export default function SystemStatusPanel() {
-  const status = useSystemStore(s => s.status)
+interface Props {
+  status: SystemStatus | null
+}
 
+export default function SystemStatusCard({ status }: Props) {
   const gpu = status?.gpu
   const vramPct = gpu ? Math.round((gpu.mem_used / gpu.mem_total) * 100) : 0
   const gpuLoadPct = gpu?.load ?? 0
   const hasError = status ? Object.values(status.loading_status ?? {}).some(v => typeof v === 'string' && v.startsWith('error')) : false
 
   return (
-    <div className="glass-panel rounded-xl p-5 flex flex-col gap-4 h-full">
+    <div className="flex flex-col gap-4 overflow-hidden">
       <div className="flex justify-between items-center mb-1">
         <h2 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
           <span className="material-symbols-outlined text-[var(--accent-blue)]">monitoring</span>
@@ -20,7 +22,6 @@ export default function SystemStatusPanel() {
         </span>
       </div>
 
-      {/* Service loading status */}
       {status && (!status.services_ready || hasError) && (
         <div className="flex flex-wrap gap-2 -mt-2">
           {Object.entries(status.loading_status ?? {}).map(([k, v]) => (
@@ -32,8 +33,7 @@ export default function SystemStatusPanel() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 flex-1">
-        {/* GPU */}
+      <div className="grid grid-cols-2 gap-4">
         <div className="bg-[var(--panel-bg)]/20 rounded-lg p-3 border border-[var(--border-color)] flex flex-col justify-between">
           <div>
             <div className="text-[10px] text-gray-500 uppercase font-mono">显卡 {gpu?.name ? `• ${gpu.name}` : ''}</div>
@@ -57,7 +57,6 @@ export default function SystemStatusPanel() {
             </div>
           </div>
         </div>
-        {/* CPU */}
         <div className="bg-[var(--panel-bg)]/20 rounded-lg p-3 border border-[var(--border-color)] flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <div>

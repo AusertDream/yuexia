@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useSocketStore, useSystemStore } from '../stores'
+import { useSocketStore } from '../stores'
+import { useSystemStatus } from '../stores/useSystemStore'
 import { api } from '../api/client'
 
 interface AsrEntry { time: string; role: string; text: string }
@@ -18,7 +19,7 @@ const MOTOR_FILTERS = ['全部信号', '活跃', '错误'] as const
 export default function PerceptionPage() {
   const [asrLog, setAsrLog] = useState<AsrEntry[]>([])
   const [motorFilter, setMotorFilter] = useState<string>('全部信号')
-  const status = useSystemStore(s => s.status)
+  const status = useSystemStatus()
   const eventsConnected = useSocketStore(s => s.eventsConnected)
   const [motors] = useState<MotorEntry[]>([
     { time: '--:--:--.--', signal: 'Idle_Breathing', confidence: 100, target: 'Global_Body', status: 'Looping' },

@@ -9,7 +9,14 @@ export function genMsgId(): string {
 
 /** 确保从后端加载的消息都有唯一 id */
 function ensureIds(msgs: ChatMessage[]): ChatMessage[] {
-  return msgs.map(m => m.id ? m : { ...m, id: genMsgId() })
+  return msgs.map(m => {
+    const msg = m.id ? m : { ...m, id: genMsgId() }
+    // 清理空字符串的 tts_path（空字符串会导致播放按钮不显示）
+    if (msg.tts_path === '') {
+      delete msg.tts_path
+    }
+    return msg
+  })
 }
 
 interface ChatState {

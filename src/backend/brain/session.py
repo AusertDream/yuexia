@@ -127,13 +127,23 @@ class SessionManager:
             path = self.dir / f"{sid}.json"
             if path.exists():
                 try:
+                    from src.backend.core.config import resolve_path
                     data = json.loads(path.read_text("utf-8"))
                     for m in data.get("messages", []):
                         tts = m.get("tts_path", "")
                         if tts:
-                            p = Path(tts)
-                            if p.exists():
-                                p.unlink()
+                            # tts_path 格式为 "/audio/xxx.wav"，需要转换为实际文件路径
+                            if tts.startswith("/audio/"):
+                                filename = tts.replace("/audio/", "")
+                                # 使用 resolve_path 获取 tts_output 目录的绝对路径
+                                tts_dir = resolve_path("data/tts_output")
+                                p = tts_dir / filename
+                                if p.exists():
+                                    try:
+                                        p.unlink()
+                                        log.info(f"已删除语音文件: {p}")
+                                    except Exception as e:
+                                        log.warning(f"删除语音文件失败 {p}: {e}")
                 except Exception:
                     log.warning(f"清理会话 {sid} 音频文件时出错", exc_info=True)
                 path.unlink()

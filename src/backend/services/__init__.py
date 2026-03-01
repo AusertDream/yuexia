@@ -50,6 +50,9 @@ def boot_services(socketio):
     try:
         from src.backend.services.brain_service import BrainService
         _brain_service = BrainService(socketio)
+        # 将 brain 注入 PerceptionService，用于 TTS 完成后回写 tts_path
+        if _perception_service is not None:
+            _perception_service.brain = _brain_service
         _loading_status["brain"] = "ok"
         log.info("BrainService 初始化完成")
     except Exception as e:

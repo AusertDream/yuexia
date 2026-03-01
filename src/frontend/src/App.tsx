@@ -1,20 +1,89 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import Sidebar from './components/layout/Sidebar'
 import DashboardPage from './pages/DashboardPage'
 import ConfigPage from './pages/ConfigPage'
 import PerceptionPage from './pages/PerceptionPage'
 import LogsPage from './pages/LogsPage'
-import { useSocketStore, useSystemStore } from './stores'
+import { useSocketStore, useSidebarStore } from './stores'
+import ToastContainer from './components/ui/Toast'
+
+function AppContent() {
+  const location = useLocation()
+  const isDashboard = location.pathname === '/'
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const collapsed = useSidebarStore(s => s.collapsed)
+
+  const [locked, setLocked] = useState(() => {
+    try { return localStorage.getItem('live2d-locked') === 'true' } catch { return false }
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem('live2d-locked', String(locked)) } catch {}
+  }, [locked])
+
+  const handleIframeLoad = () => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'set-lock', locked }, '*')
+  }
+
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'set-lock', locked }, '*')
+  }, [locked])
+
+  const sidebarWidth = collapsed ? '80px' : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? '256px' : '80px')
+
+  return (
+    <div className="flex-1 flex overflow-hidden relative">
+      <Sidebar />
+      {/* 持久化 Live2D 层 - 始终挂载，仅在仪表盘可见 */}
+      <div
+        className={`absolute top-0 bottom-0 z-[5] left-20 lg:left-64 right-0 ${isDashboard ? '' : 'invisible'}`}
+      >
+        <iframe
+          ref={iframeRef}
+          src="/live2d/index.html"
+          className="w-full h-full border-0"
+          title="Live2D"
+          onLoad={handleIframeLoad}
+        />
+        {isDashboard && (
+          <button
+            onClick={() => setLocked(v => !v)}
+            className="absolute top-4 left-4 z-[25] p-2 rounded-lg backdrop-blur-sm border transition-colors"
+            style={{
+              background: locked ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.3)',
+              borderColor: locked ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
+              color: locked ? '#f87171' : 'rgba(255,255,255,0.6)',
+            }}
+            title={locked ? '点击解锁 Live2D' : '点击锁定 Live2D'}
+          >
+            <span className="material-symbols-outlined text-[20px]">
+              {locked ? 'lock' : 'lock_open'}
+            </span>
+          </button>
+        )}
+      </div>
+      {/* 主内容区 - 非仪表盘时有背景色遮挡 iframe */}
+      <main className={`flex-1 overflow-hidden relative ${isDashboard ? 'pointer-events-none' : 'z-10 bg-[var(--bg-color)]'}`}>
+        <div className={isDashboard ? 'pointer-events-auto h-full' : 'h-full'}>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/config" element={<ConfigPage />} />
+            <Route path="/perception" element={<PerceptionPage />} />
+            <Route path="/logs" element={<LogsPage />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+      </main>
+    </div>
+  )
+}
 
 export default function App() {
-  // 应用启动时初始化 WebSocket 连接和系统状态轮询
   useEffect(() => {
     useSocketStore.getState().connect()
-    useSystemStore.getState().startPolling()
     return () => {
       useSocketStore.getState().disconnect()
-      useSystemStore.getState().stopPolling()
     }
   }, [])
 
@@ -27,19 +96,9 @@ export default function App() {
             <span>月下协议 // 控制中心 v1.0.5-web</span>
           </div>
         </div>
-        <div className="flex-1 flex overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden">
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/config" element={<ConfigPage />} />
-              <Route path="/perception" element={<PerceptionPage />} />
-              <Route path="/logs" element={<LogsPage />} />
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </main>
-        </div>
+        <AppContent />
       </div>
+      <ToastContainer />
     </BrowserRouter>
   )
 }

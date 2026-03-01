@@ -47,10 +47,28 @@ brain:
   top_k: 50
   top_p: 0.9
 diary:
-  auto_generate: false
   enabled: true
-  generation_time: '23:00'
   output_dir: data/diary
+
+  daily:
+    enabled: true
+    frequency: 1  # 每 1 天记录一次
+    prompt: "请根据今天的对话内容，总结我的思考、情绪和重要事件。"
+
+  weekly:
+    enabled: true
+    frequency: 1  # 每 1 周记录一次
+    prompt: "请根据本周的对话内容，总结我这一周的主要活动、成长和感悟。"
+
+  monthly:
+    enabled: false
+    frequency: 1  # 每 1 月记录一次
+    prompt: "请根据本月的对话内容，总结我这个月的重要变化、成就和反思。"
+
+  yearly:
+    enabled: false
+    frequency: 1  # 每 1 年记录一次
+    prompt: "请根据今年的对话内容，总结我这一年的成长轨迹、重大事件和人生感悟。"
 face:
   always_on_top: true
   height: 605

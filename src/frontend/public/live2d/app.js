@@ -142,11 +142,20 @@ function playAudio(path) {
   };
 }
 
+// === 锁定控制（来自父页面 postMessage）===
+let interactionLocked = false
+
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'set-lock') {
+    interactionLocked = e.data.locked
+  }
+})
+
 // === 拖拽 + 缩放 ===
 function setupInteraction() {
   const canvas = document.getElementById('live2d-canvas');
   let dragging = false, lastX = 0, lastY = 0;
-  canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+  canvas.addEventListener('mousedown', e => { if (interactionLocked) return; dragging = true; lastX = e.clientX; lastY = e.clientY; });
   canvas.addEventListener('mousemove', e => {
     if (!dragging) return;
     moveModel(e.clientX - lastX, e.clientY - lastY);
@@ -155,6 +164,7 @@ function setupInteraction() {
   canvas.addEventListener('mouseup', () => { dragging = false; });
   canvas.addEventListener('mouseleave', () => { dragging = false; });
   canvas.addEventListener('wheel', e => {
+    if (interactionLocked) return;
     e.preventDefault();
     currentScale = Math.max(0.3, Math.min(3, currentScale - e.deltaY * 0.001));
     setModelScale(currentScale);
