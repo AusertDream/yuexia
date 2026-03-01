@@ -146,4 +146,14 @@ if __name__ == "__main__":
     from src.backend.services import boot_services
     threading.Thread(target=boot_services, args=(sio,), daemon=True).start()
 
-    uvicorn.run(asgi_app, host="0.0.0.0", port=port, log_level="info")
+    uvicorn.run(
+        asgi_app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        # SSE 流式传输优化
+        server_header=False,
+        date_header=False,
+        # 禁用访问日志减少开销
+        access_log=False,
+    )

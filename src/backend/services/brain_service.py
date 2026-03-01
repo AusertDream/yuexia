@@ -166,10 +166,11 @@ class BrainService:
             await self.socketio.emit("expression", {"emotion": emotion}, namespace="/ws/events")
             # 日记记录检查
             if self.diary and get("diary.enabled", True):
-                try:
-                    await self.diary.write(self.history, self.engine)
-                except Exception:
-                    log.debug("日记写入跳过", exc_info=True)
+                for diary_type in ["daily", "weekly", "monthly", "yearly"]:
+                    try:
+                        await self.diary.write(self.history, self.engine, diary_type)
+                    except Exception:
+                        log.debug(f"{diary_type} 日记写入跳过", exc_info=True)
 
         except Exception as e:
             log.exception("推理异常")

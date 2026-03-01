@@ -289,6 +289,14 @@ async def trigger_immediate_diary():
             status_code=400
         )
 
+    # 确保引擎已加载
+    brain._ensure_engine()
+    if not brain.engine:
+        return JSONResponse(
+            content={"error": "LLM 引擎未初始化或加载失败"},
+            status_code=500
+        )
+
     diary_writer = DiaryWriter()
     results = {}
 

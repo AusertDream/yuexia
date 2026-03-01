@@ -1,6 +1,7 @@
 """AI 日记：对话结束后生成日记条目"""
 from pathlib import Path
 from datetime import datetime
+import json
 from src.backend.core.config import get, resolve_path
 from src.backend.core.logger import get_logger
 
@@ -11,6 +12,48 @@ class DiaryWriter:
     def __init__(self):
         self.output_dir = resolve_path(get("diary.output_dir", "data/diary"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.state_file = self.output_dir / ".diary_state.json"
+        self.state = self._load_state()
+
+    def _load_state(self) -> dict:
+        """加载日记生成状态"""
+        if self.state_file.exists():
+            try:
+                return json.loads(self.state_file.read_text(encoding="utf-8"))
+            except Exception:
+                log.debug("状态文件读取失败，使用空状态")
+        return {}
+
+    def _save_state(self):
+        """保存日记生成状态"""
+        try:
+            self.state_file.write_text(json.dumps(self.state, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            log.debug("状态文件保存失败", exc_info=True)
+
+    def _should_generate(self, diary_type: str) -> bool:
+        """判断是否应该生成该类型的日记"""
+        last_time_str = self.state.get(f"{diary_type}_last")
+        if not last_time_str:
+            return True
+        try:
+            last_time = datetime.fromisoformat(last_time_str)
+        except ValueError:
+            return True
+        now = datetime.now()
+        intervals = {
+            "daily": lambda: now.date() > last_time.date(),
+            "weekly": lambda: (now - last_time).days >= 7,
+            "monthly": lambda: (now.year, now.month) > (last_time.year, last_time.month),
+            "yearly": lambda: now.year > last_time.year,
+        }
+        check = intervals.get(diary_type)
+        return check() if check else True
+
+    def _update_state(self, diary_type: str):
+        """更新日记生成状态"""
+        self.state[f"{diary_type}_last"] = datetime.now().isoformat()
+        self._save_state()
 
     async def write(self, conversation: list[dict], engine, diary_type: str = "daily") -> str:
         """用 LLM 生成日记条目并保存
@@ -20,6 +63,11 @@ class DiaryWriter:
             engine: LLM 引擎
             diary_type: 日记类型（daily/weekly/monthly/yearly）
         """
+        # 频率检查
+        if not self._should_generate(diary_type):
+            log.debug(f"{diary_type} 日记尚未到生成时间，跳过")
+            return ""
+
         # 获取对应类型的配置
         config_key = f"diary.{diary_type}"
         enabled = get(f"{config_key}.enabled", False)
@@ -49,6 +97,7 @@ class DiaryWriter:
         path = self.output_dir / f"{prefix}_{now.strftime('%Y-%m-%d_%H%M%S')}.md"
         path.write_text(f"# {prefix} - {now.strftime('%Y年%m月%d日 %H:%M')}\n\n{content}\n", encoding="utf-8")
         log.info(f"{prefix}已保存: {path}")
+        self._update_state(diary_type)
         return content
 
     def _get_default_prompt(self, diary_type: str) -> str:

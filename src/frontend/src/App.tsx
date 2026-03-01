@@ -46,22 +46,6 @@ function AppContent() {
           title="Live2D"
           onLoad={handleIframeLoad}
         />
-        {isDashboard && (
-          <button
-            onClick={() => setLocked(v => !v)}
-            className="absolute top-4 left-4 z-[25] p-2 rounded-lg backdrop-blur-sm border transition-colors"
-            style={{
-              background: locked ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.3)',
-              borderColor: locked ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
-              color: locked ? '#f87171' : 'rgba(255,255,255,0.6)',
-            }}
-            title={locked ? '点击解锁 Live2D' : '点击锁定 Live2D'}
-          >
-            <span className="material-symbols-outlined text-[20px]">
-              {locked ? 'lock' : 'lock_open'}
-            </span>
-          </button>
-        )}
       </div>
       {/* 主内容区 - 非仪表盘时有背景色遮挡 iframe */}
       <main className={`flex-1 overflow-hidden relative ${isDashboard ? 'pointer-events-none' : 'z-10 bg-[var(--bg-color)]'}`}>
@@ -75,6 +59,23 @@ function AppContent() {
           </Routes>
         </div>
       </main>
+      {/* Live2D 锁定按钮 - 固定在右上角 */}
+      {isDashboard && (
+        <button
+          onClick={() => setLocked(v => !v)}
+          className="fixed top-4 right-[calc(min(420px,35vw)+2rem)] z-30 p-2 rounded-lg backdrop-blur-sm border transition-colors"
+          style={{
+            background: locked ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.3)',
+            borderColor: locked ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
+            color: locked ? '#f87171' : 'rgba(255,255,255,0.6)',
+          }}
+          title={locked ? '点击解锁 Live2D' : '点击锁定 Live2D'}
+        >
+          <span className="material-symbols-outlined text-[20px]">
+            {locked ? 'lock' : 'lock_open'}
+          </span>
+        </button>
+      )}
     </div>
   )
 }

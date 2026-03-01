@@ -135,6 +135,8 @@ def start_backend(ports: dict, log_dir: Path) -> subprocess.Popen:
     env = os.environ.copy()
     env["YUEXIA_ROOT"] = str(root)
     env["PYTHONIOENCODING"] = "utf-8"
+    # 禁用 Python 缓冲，确保 SSE 流式输出
+    env["PYTHONUNBUFFERED"] = "1"
 
     log_f = open_log(log_dir, "backend.log")
     proc = subprocess.Popen(

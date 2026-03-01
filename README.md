@@ -11,13 +11,14 @@
 
 | 层      | 技术                                       |
 | ------ | ---------------------------------------- |
-| 前端     | React 19 + TypeScript + Vite 6 + TailwindCSS 4 |
-| 后端     | Flask + Flask-SocketIO                   |
-| LLM    | Qwen3-VL-4B-Instruct（vLLM / Transformers 双模） |
+| 前端     | React 19 + TypeScript + Vite 6 + TailwindCSS 4 + Zustand |
+| 后端     | FastAPI + Socket.IO (ASGI)               |
+| LLM    | Qwen3-VL-4B-Instruct（vLLM / Transformers / OpenAI API 三模） |
 | TTS    | GPT-SoVITS v2（HTTP API）                  |
 | ASR    | Faster-Whisper + Silero-VAD              |
 | 向量数据库  | ChromaDB                                 |
 | Live2D | PixiJS + Cubism 4 SDK                    |
+| 任务调度   | APScheduler                              |
 
 ## 目录结构
 
@@ -45,14 +46,16 @@ yuexia/
 
 ### 核心认知层 (Brain)
 
-- [x] vLLM / Transformers 双模推理引擎，自动降级（Windows 自动使用 Transformers）
+- [x] vLLM / Transformers / OpenAI API 三模推理引擎，自动降级（Windows 自动使用 Transformers）
 - [x] 多模态推理（文本 + 图像输入），支持 Qwen3-VL 视觉理解
 - [x] SSE 流式对话输出
 - [x] ChromaDB 向量记忆，语义检索历史对话（可通过配置开关）
 - [x] 系统提示词模板管理（从文件加载，支持记忆上下文注入）
-- [x] 多会话管理（创建、切换、重命名、删除、历史消息持久化）
-- [x] AI 日记生成（DiaryWriter，LLM 自动总结对话并写入 Markdown）
+- [x] 多会话管理（创建、切换、重命名、删除、历史消息持久化，支持 32 位会话 ID）
+- [x] AI 日记生成（DiaryWriter，支持日记/周记/月记/年记四种类型，每种独立配置，支持立即记录）
 - [x] 情感标签提取（从 LLM 回复中解析 `[emotion:xxx]` 标签）
+- [x] 行为引擎（支持定时触发、无输入超时触发、cron 表达式触发，带安静时段和每日消息限制）
+- [x] Markdown 渲染（代码块语法高亮、复制按钮、GFM 表格支持）
 
 ### 感知与表达层 (Perception & Expression)
 
@@ -64,15 +67,17 @@ yuexia/
 
 ### 交互层 (Face)
 
-- [x] React Web UI 仪表盘（Dashboard）
-- [x] Live2D 角色模型嵌入（PixiJS + Cubism 4 SDK，iframe 渲染）
-- [x] 聊天面板（流式输出、多会话标签切换）
+- [x] React Web UI 仪表盘（Dashboard，沉浸式 Live2D 全屏背景 + 毛玻璃聊天浮层）
+- [x] Live2D 角色模型嵌入（PixiJS + Cubism 4 SDK，iframe 渲染，支持锁定/解锁交互）
+- [x] 聊天面板（流式输出、多会话标签切换、Markdown 渲染、TTS 播放按钮）
 - [x] 前端语音输入（Web Speech API）
 - [x] 系统状态实时监控（GPU/VRAM/CPU/内存/推理速度，3 秒轮询）
-- [x] 配置管理页面（Brain、TTS、ASR、Memory、屏幕截图等全部可配置项）
+- [x] 配置管理页面（Bento Grid 布局，137 个配置项全覆盖，支持热重载）
 - [x] 感知监控页面（视觉输入、ASR 文本流、动作输出、服务状态）
-- [x] 实时日志页面（WebSocket 日志流、过滤、搜索、下载）
-- [x] 侧边栏导航（仪表盘、配置、感知、日志）
+- [x] 实时日志页面（WebSocket 日志流、过滤、搜索、下载，5000 条缓冲）
+- [x] 侧边栏导航（仪表盘、配置、感知、日志，支持收起/展开）
+- [x] Toast 通知系统（配置保存、操作反馈）
+- [x] 滚动揭示动画（Reveal on Scroll）和微交互（Interactive Hover）
 - [ ] Live2D 唇形同步（根据音频振幅驱动口型参数）
 - [ ] Live2D 表情过渡动画（根据情感标签驱动表情切换）
 
@@ -86,15 +91,19 @@ yuexia/
 
 ### 基础设施
 
-- [x] YAML 全局配置（点分路径取值，热更新）
-- [x] 统一日志系统（WebSocket 广播 + 200 条缓冲回放）
+- [x] YAML 全局配置（137 个配置项，11 个分类，点分路径取值，热更新）
+- [x] 配置白名单机制（约 90 项可前端修改，防止危险配置被篡改）
+- [x] 统一日志系统（WebSocket 广播 + 5000 条缓冲回放，stdout/stderr 重定向，TTS 日志 tail）
 - [x] 服务层单例管理（BrainService、PerceptionService、LogService）
 - [x] 后台线程异步启动服务（boot_services）
-- [x] 配置变更后服务热重载（reload_services）
+- [x] 配置变更后服务热重载（reload_services，引擎锁保护，GPU 显存释放）
 - [x] OpenAPI 3.0 规范 + Swagger UI 文档
-- [x] Windows 一键启动/停止脚本（start.bat / stop.bat）
+- [x] Windows 一键启动/停止脚本（launcher.py + start.bat，环境变量传递，健康检查）
 - [x] 日志按运行次数分文件夹存储，自动清理（保留最近 5 次）
 - [x] 输入校验与错误处理（长度限制、空值检查、404/503 友好 JSON 响应）
+- [x] 会话数据并发保护（threading.RLock + 原子写入）
+- [x] TTS 连接池复用（httpx.AsyncClient 持久化）
+- [x] Zustand 状态管理（WebSocket 单例、系统状态缓存、配置 Store、聊天 Store）
 
 ### 自进化系统
 
@@ -103,41 +112,57 @@ yuexia/
 
 ## API 端点
 
-| 端点                    | 方法                 | 说明              |
-| --------------------- | ------------------ | --------------- |
-| `/api/chat/stream`    | POST               | SSE 流式聊天        |
-| `/api/sessions`       | GET / POST         | 会话列表 / 创建       |
-| `/api/sessions/<sid>` | GET / PUT / DELETE | 切换 / 重命名 / 删除会话 |
-| `/api/config`         | GET / PUT          | 读取 / 更新配置       |
-| `/api/system/status`  | GET                | 系统资源状态          |
-| `/api/screenshot`     | GET                | 屏幕截图            |
-| `/api/emotion-refs`   | GET                | 情感参考音频列表        |
-| `/api/asr/devices`    | GET                | 音频输入设备列表        |
-| `/api/docs`           | GET                | Swagger UI      |
-| `/ws/logs`            | WebSocket          | 实时日志流           |
-| `/ws/events`          | WebSocket          | 事件推送（表情、TTS 完成） |
+| 端点                          | 方法                 | 说明              |
+| --------------------------- | ------------------ | --------------- |
+| `/api/chat/stream`          | POST               | SSE 流式聊天        |
+| `/api/sessions`             | GET / POST         | 会话列表 / 创建       |
+| `/api/sessions/<sid>`       | GET / DELETE       | 加载 / 删除会话       |
+| `/api/sessions/<sid>/switch`| POST               | 切换会话            |
+| `/api/sessions/<sid>/rename`| PUT                | 重命名会话           |
+| `/api/config`               | GET / PUT          | 读取 / 更新配置       |
+| `/api/diary/immediate`      | POST               | 立即生成日记（所有启用类型） |
+| `/api/system/status`        | GET                | 系统资源状态          |
+| `/api/screenshot`           | GET                | 屏幕截图            |
+| `/api/emotion-refs`         | GET                | 情感参考音频列表        |
+| `/api/asr/devices/input`    | GET                | 音频输入设备列表        |
+| `/api/asr/devices/output`   | GET                | 音频输出设备列表        |
+| `/api/asr/test/start`       | POST               | 开始麦克风测试         |
+| `/api/asr/test/stop`        | POST               | 停止麦克风测试         |
+| `/api/docs`                 | GET                | Swagger UI      |
+| `/ws/logs`                  | WebSocket          | 实时日志流           |
+| `/ws/events`                | WebSocket          | 事件推送（表情、TTS 完成、主动消息） |
 
 ## 启动
 
 ```bash
 # 一键启动（TTS + Backend + Frontend）
-start.vbs
+# 方式1：双击 start.bat（推荐）
+start.bat
+
+# 方式2：通过 launcher.py
+python launcher.py
 
 # 或手动分别启动
+conda activate yuexia
 python -m src.backend.app              # Backend :5000
 cd src/frontend && npm run dev         # Frontend :5173
 # GPT-SoVITS 需单独启动               # TTS :9880
 ```
 
-## 未实现功能（按 plan.md 路线图）
+启动后浏览器会自动打开 http://localhost:5173
 
-| 功能               | 所属层  | 阶段   | 备注                 |
-| ---------------- | ---- | ---- | ------------------ |
-| ASR 语音识别服务集成     | 感知层  | 第一阶段 | API 端点已定义，服务未接入    |
-| Live2D 唇形同步      | 交互层  | 第二阶段 | 需根据音频振幅驱动口型参数      |
-| Live2D 表情动画      | 交互层  | 第二阶段 | 需根据情感标签驱动表情切换      |
-| MCP 工具宿主         | 动作层  | 第三阶段 | plan 标注"不急，可以先不实现" |
-| 浏览器自动化           | 动作层  | 第三阶段 | Playwright 集成      |
-| 屏幕持续感知           | 动作层  | 第三阶段 | 视频流或定时截图输入 Brain   |
-| 感知-动作-观察闭环       | 动作层  | 第三阶段 | 操作后截图反馈至 Brain     |
-| LoRA 微调 Pipeline | 自进化  | 第四阶段 | plan 标注"先不用做"      |
+## TODO
+
+### 高优先级
+- [ ] ASR 语音识别服务集成（API 端点已定义，服务未接入）
+- [ ] Live2D 唇形同步（根据音频振幅驱动口型参数）
+- [ ] Live2D 表情动画（根据情感标签驱动表情切换）
+
+### 中优先级
+- [ ] 屏幕持续感知（视频流或定时截图输入 Brain）
+- [ ] 感知-动作-观察闭环（操作后截图反馈至 Brain）
+- [ ] 浏览器自动化（Playwright 集成）
+
+### 低优先级
+- [ ] MCP 工具宿主（Model Context Protocol Server）
+- [ ] LoRA 微调 Pipeline（nightly_finetune.py）
