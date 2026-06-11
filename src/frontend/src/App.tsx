@@ -7,6 +7,7 @@ import PerceptionPage from './pages/PerceptionPage'
 import LogsPage from './pages/LogsPage'
 import { useSocketStore, useSidebarStore } from './stores'
 import ToastContainer from './components/ui/Toast'
+import { registerLive2DFrame } from './lib/live2dBridge'
 
 function AppContent() {
   const location = useLocation()
@@ -24,6 +25,7 @@ function AppContent() {
 
   const handleIframeLoad = () => {
     iframeRef.current?.contentWindow?.postMessage({ type: 'set-lock', locked }, '*')
+    registerLive2DFrame(iframeRef.current?.contentWindow ?? null)
   }
 
   useEffect(() => {

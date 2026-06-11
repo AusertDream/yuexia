@@ -3,6 +3,7 @@ import { useChatStream } from '../../hooks/useSSE'
 import { useSocketStore, useChatStore } from '../../stores'
 import { genMsgId } from '../../stores/useChatStore'
 import MarkdownRenderer from './MarkdownRenderer'
+import { live2dSpeak } from '../../lib/live2dBridge'
 
 export default function ChatPanel() {
   const { sessions, currentId, messages, loadSessions, switchSession, createSession, deleteSession, setMessages } = useChatStore()
@@ -19,27 +20,6 @@ export default function ChatPanel() {
   useEffect(() => {
     return () => { cancel() }
   }, [cancel])
-
-  // TTS 自动播放
-  useEffect(() => {
-    if (!eventsConnected) return
-    const handler = (d: { path: string }) => {
-      if (!d.path) return
-      const filename = d.path.replace(/\\/g, '/').split('/').pop()
-      const url = '/audio/' + filename
-      setMessages(prev => {
-        const copy = [...prev]
-        for (let i = copy.length - 1; i >= 0; i--) {
-          if (copy[i].role === 'assistant') { copy[i] = { ...copy[i], tts_path: url }; break }
-        }
-        return copy
-      })
-      new Audio(url).play().catch(() => {})
-    }
-    const store = useSocketStore.getState()
-    store.onTtsDone(handler)
-    return () => { store.offTtsDone(handler) }
-  }, [eventsConnected, setMessages])
 
   // ASR 识别结果监听
   useEffect(() => {
@@ -89,20 +69,20 @@ export default function ChatPanel() {
   }
 
   const playTts = (url: string) => {
-    // 停止并清理之前的音频
+    if (live2dSpeak(url)) return
+
+    // Live2D 不可用时回退到 HTML Audio
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
       audioRef.current = null
     }
 
-    // 创建新的音频实例
     const audio = new Audio(url)
     audioRef.current = audio
 
     audio.play().catch(() => {})
 
-    // 播放结束后清理引用
     audio.onended = () => {
       if (audioRef.current === audio) {
         audioRef.current = null

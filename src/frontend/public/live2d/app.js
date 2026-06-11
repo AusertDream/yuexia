@@ -35,6 +35,12 @@ async function initLive2D() {
     core.setParameterValueById('ParamAngleZ', 2 * Math.sin(t * 0.5));
     core.setParameterValueById('ParamBodyAngleX', 2.5 * Math.sin(t * 1.05 - 0.3));
     core.setParameterValueById('ParamBodyAngleZ', 1 * Math.sin(t * 0.5 - 0.2));
+
+    // 表情插值（线性逼近）
+    for (const p of EXPR_PARAMS) {
+      exprCurrent[p] += (exprTarget[p] - exprCurrent[p]) * 0.12;
+      core.setParameterValueById(p, exprCurrent[p]);
+    }
   });
 }
 
@@ -115,41 +121,197 @@ function endStream() { currentAiMsg = null; }
 
 // === 音频播放 + 口型 ===
 let lipSyncId = null;
+let playSeq = 0;               // 播放序列号，防止快速连续调用导致竞态
+let audioCtx = null;           // 惰性创建的 AudioContext
+let sourceNodeCreated = false; // 防止对同一 media element 重复 createMediaElementSource
+let analyser = null;
+let analyserData = null;       // Uint8Array，时域数据
+
+// 辅助：通知父页面播放状态
+function notifySpeakState(playing) {
+  window.parent.postMessage({ type: 'live2d-speak-state', playing }, window.location.origin);
+}
+
+// 停止当前口型循环并归零口型
+function stopLipSync() {
+  if (lipSyncId) {
+    cancelAnimationFrame(lipSyncId);
+    lipSyncId = null;
+  }
+  if (live2dModel) {
+    live2dModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0);
+  }
+}
 
 function playAudio(path) {
   if (!path) return;
+
+  const seq = ++playSeq;
+  // 新播放前：先通知上一段结束，并清理
+  notifySpeakState(false);
+  stopLipSync();
+
   audioPlayer.src = path;
-  audioPlayer.play();
-  if (lipSyncId) cancelAnimationFrame(lipSyncId);
-  const startTime = performance.now();
-  function animateLip() {
-    if (audioPlayer.paused || audioPlayer.ended) {
-      if (live2dModel) live2dModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0);
-      lipSyncId = null;
-      return;
+
+  // 惰性初始化 Web Audio 分析管线（只做一次）
+  let useAnalyser = false;
+  if (!audioCtx) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      audioCtx = ctx;
+    } catch (err) {
+      // AudioContext 不可用，走回退
     }
-    if (live2dModel) {
-      const t = (performance.now() - startTime) / 1000;
-      const v = Math.abs(0.3 * Math.sin(t * 8.5) + 0.2 * Math.sin(t * 12.3) + 0.15 * Math.sin(t * 5.7));
-      live2dModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', Math.min(v, 1));
-    }
-    lipSyncId = requestAnimationFrame(animateLip);
   }
-  animateLip();
+  if (audioCtx && !sourceNodeCreated) {
+    try {
+      const src = audioCtx.createMediaElementSource(audioPlayer);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      analyserData = new Uint8Array(analyser.fftSize);
+      sourceNodeCreated = true;
+      useAnalyser = true;
+    } catch (err) {
+      // 重复创建或其他异常，走回退
+    }
+  } else if (audioCtx && sourceNodeCreated) {
+    useAnalyser = true;
+  }
+
+  // 确保 AudioContext 不处于 suspended
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+
+  // 播放（catch 防止 unhandled rejection）
+  audioPlayer.play().then(() => {
+    if (seq !== playSeq) return;
+    // 播放开始时通知父页面
+    notifySpeakState(true);
+  }).catch(() => {
+    if (seq !== playSeq) return;
+    notifySpeakState(false);
+  });
+
+  // 判断走哪条口型路径：analyser 可用 → 真实振幅；否则 → 正弦波回退
+  if (useAnalyser && analyser && analyserData) {
+    // Web Audio 真实振幅口型
+    const GAIN = 6; // RMS 增益，让正常说话幅度可见
+    let prevMouth = 0;
+    function animateLipAnalyser() {
+      if (audioPlayer.paused || audioPlayer.ended) {
+        if (seq !== playSeq) return;
+        stopLipSync();
+        notifySpeakState(false);
+        return;
+      }
+      if (live2dModel) {
+        analyser.getByteTimeDomainData(analyserData);
+        let sumSq = 0;
+        for (let i = 0; i < analyserData.length; i++) {
+          const v = (analyserData[i] - 128) / 128;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / analyserData.length);
+        let target = rms * GAIN;
+        if (target > 1) target = 1;
+        if (target < 0) target = 0;
+        // 平滑：避免口型跳动
+        const smooth = prevMouth + (target - prevMouth) * 0.35;
+        prevMouth = smooth;
+        live2dModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', smooth);
+      }
+      lipSyncId = requestAnimationFrame(animateLipAnalyser);
+    }
+    animateLipAnalyser();
+  } else {
+    // 正弦波回退口型（保持原有逻辑）
+    const startTime = performance.now();
+    function animateLipFallback() {
+      if (audioPlayer.paused || audioPlayer.ended) {
+        if (seq !== playSeq) return;
+        stopLipSync();
+        notifySpeakState(false);
+        return;
+      }
+      if (live2dModel) {
+        const t = (performance.now() - startTime) / 1000;
+        const v = Math.abs(0.3 * Math.sin(t * 8.5) + 0.2 * Math.sin(t * 12.3) + 0.15 * Math.sin(t * 5.7));
+        live2dModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', Math.min(v, 1));
+      }
+      lipSyncId = requestAnimationFrame(animateLipFallback);
+    }
+    animateLipFallback();
+  }
+
+  // 播放结束
   audioPlayer.onended = () => {
-    if (lipSyncId) { cancelAnimationFrame(lipSyncId); lipSyncId = null; }
-    if (live2dModel) live2dModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0);
+    if (seq !== playSeq) return;
+    stopLipSync();
+    notifySpeakState(false);
   };
+
+  // 播放出错
+  audioPlayer.onerror = () => {
+    if (seq !== playSeq) return;
+    stopLipSync();
+    notifySpeakState(false);
+  };
+}
+
+// === 表情引擎 ===
+// 可用的表情参数（不与自动眨眼/idle 冲突）
+const EXPR_PARAMS = [
+  'ParamEyeLSmile', 'ParamEyeRSmile', 'ParamMouthForm', 'ParamCheek',
+  'ParamBrowLY', 'ParamBrowRY', 'ParamBrowLAngle', 'ParamBrowRAngle',
+  'ParamBrowLForm', 'ParamBrowRForm'
+];
+
+// 表情映射表（未列出的参数视为 0）
+const EXPR_MAP = {
+  happy:     { EyeLSmile: 1, EyeRSmile: 1, MouthForm: 1,  Cheek: 0.6, BrowLY: 0.3,  BrowRY: 0.3 },
+  excited:   { EyeLSmile: 1, EyeRSmile: 1, MouthForm: 1,  Cheek: 1,   BrowLY: 0.6,  BrowRY: 0.6 },
+  sad:       { MouthForm: -0.8, BrowLY: -0.4, BrowRY: -0.4, BrowLAngle: -0.5, BrowRAngle: -0.5, BrowLForm: -0.6, BrowRForm: -0.6 },
+  angry:     { MouthForm: -1, BrowLY: -0.6, BrowRY: -0.6, BrowLAngle: 0.5, BrowRAngle: 0.5, BrowLForm: -0.8, BrowRForm: -0.8, Cheek: 0.3 },
+  surprised: { BrowLY: 0.9, BrowRY: 0.9, MouthForm: 0.2 },
+  shy:       { Cheek: 1, MouthForm: 0.3, EyeLSmile: 0.5, EyeRSmile: 0.5, BrowLY: -0.2, BrowRY: -0.2 },
+};
+
+// 当前和目标表情值
+const exprCurrent = {};
+const exprTarget = {};
+// 初始化全为 0
+for (const p of EXPR_PARAMS) {
+  exprCurrent[p] = 0;
+  exprTarget[p] = 0;
+}
+
+// 设置目标表情
+function applyExpression(emotion) {
+  const map = (emotion && EXPR_MAP[emotion]) ? EXPR_MAP[emotion] : {};
+  for (const p of EXPR_PARAMS) {
+    exprTarget[p] = map[p] || 0;
+  }
 }
 
 // === 锁定控制（来自父页面 postMessage）===
 let interactionLocked = false
 
 window.addEventListener('message', (e) => {
-  if (e.data?.type === 'set-lock') {
-    interactionLocked = e.data.locked
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type === 'set-lock') {
+    interactionLocked = e.data.locked;
+  } else if (e.data.type === 'speak') {
+    // 播放音频并驱动口型，可选表情
+    if (e.data.emotion) applyExpression(e.data.emotion);
+    playAudio(e.data.url);
+  } else if (e.data.type === 'expression') {
+    applyExpression(e.data.emotion);
   }
-})
+});
 
 // === 拖拽 + 缩放 ===
 function setupInteraction() {

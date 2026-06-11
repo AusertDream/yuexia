@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { io, Socket } from 'socket.io-client'
 import type { LogEntry } from '../types'
 import { useChatStore, genMsgId } from './useChatStore'
+import { live2dSpeak, live2dSetExpression } from '../lib/live2dBridge'
 
 // 事件类型定义
 type TtsDoneHandler = (data: { path: string }) => void
@@ -63,9 +64,16 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     eventsSocket.on('proactive_message', (data: { text: string }) => {
       useChatStore.getState().handleProactiveMessage(data.text)
     })
-    // TTS 完成：将音频路径持久化到最后一条 assistant 消息
-    eventsSocket.on('tts_done', (data: { path: string }) => {
-      useChatStore.getState().updateLastAssistantTtsPath(data.path)
+    // TTS 完成：转换路径为 URL 并推送到 Live2D iframe
+    eventsSocket.on('tts_done', (data: { path: string; emotion?: string }) => {
+      if (!data.path) return
+      const filename = data.path.replace(/\\/g, '/').split('/').pop()!
+      const url = '/audio/' + filename
+      useChatStore.getState().updateLastAssistantTtsPath(url)
+      const sent = live2dSpeak(url, data.emotion)
+      if (!sent) {
+        new Audio(url).play().catch(() => {})
+      }
     })
     // 服务加载完成通知
     eventsSocket.on('services_ready', (data: Record<string, string>) => {
@@ -77,6 +85,12 @@ export const useSocketStore = create<SocketState>((set, get) => ({
           id: genMsgId(), role: 'system' as any,
           content: `${parts.join('、')}加载完成`,
         })
+      }
+    })
+    // 表情事件：推送到 Live2D iframe
+    eventsSocket.on('expression', (data: { emotion: string }) => {
+      if (data?.emotion) {
+        live2dSetExpression(data.emotion)
       }
     })
 
