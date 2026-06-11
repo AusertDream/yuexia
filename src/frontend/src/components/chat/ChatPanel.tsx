@@ -41,21 +41,51 @@ export default function ChatPanel() {
     return () => { store.offTtsDone(handler) }
   }, [eventsConnected, setMessages])
 
+  // ASR 识别结果监听
+  useEffect(() => {
+    if (!eventsConnected) return
+    const handler = (d: { text: string }) => {
+      if (!d.text) return
+      setInput(prev => prev + d.text)
+    }
+    const store = useSocketStore.getState()
+    store.onAsrResult(handler)
+    return () => { store.offAsrResult(handler) }
+  }, [eventsConnected])
+
   const switchTo = (id: string) => { switchSession(id) }
   const newSession = () => { createSession() }
 
-  const toggleVoice = () => {
-    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
-    if (!SR) return
-    if (listening) return
-    const rec = new SR()
-    rec.lang = 'zh-CN'
-    rec.interimResults = false
-    rec.onresult = (e: any) => { setInput(prev => prev + e.results[0][0].transcript) }
-    rec.onend = () => setListening(false)
-    rec.onerror = () => setListening(false)
-    setListening(true)
-    rec.start()
+  const toggleVoice = async () => {
+    try {
+      if (!listening) {
+        // 启动 ASR
+        const response = await fetch('/api/asr/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device: null }) // 使用默认麦克风
+        })
+        if (!response.ok) {
+          const error = await response.json()
+          console.error('启动ASR失败:', error)
+          return
+        }
+        setListening(true)
+      } else {
+        // 停止 ASR
+        const response = await fetch('/api/asr/stop', {
+          method: 'POST'
+        })
+        if (!response.ok) {
+          const error = await response.json()
+          console.error('停止ASR失败:', error)
+          return
+        }
+        setListening(false)
+      }
+    } catch (err) {
+      console.error('ASR操作失败:', err)
+    }
   }
 
   const playTts = (url: string) => {
@@ -180,12 +210,10 @@ export default function ChatPanel() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           />
-          {'webkitSpeechRecognition' in window && (
-            <button onClick={toggleVoice}
-              className={`p-2 rounded-lg transition-colors ${listening ? 'bg-red-500/20 text-red-400 animate-pulse' : 'text-gray-400 hover:text-[var(--accent-blue)]'}`}>
-              <span className="material-symbols-outlined text-[20px]">mic</span>
-            </button>
-          )}
+          <button onClick={toggleVoice}
+            className={`p-2 rounded-lg transition-colors ${listening ? 'bg-red-500/20 text-red-400 animate-pulse' : 'text-gray-400 hover:text-[var(--accent-blue)]'}`}>
+            <span className="material-symbols-outlined text-[20px]">mic</span>
+          </button>
           <button onClick={send} disabled={streaming}
             className="p-2 bg-[var(--accent-blue)] text-black rounded-lg hover:bg-cyan-300 interactive-hover disabled:opacity-50">
             <span className="material-symbols-outlined text-[20px]">send</span>

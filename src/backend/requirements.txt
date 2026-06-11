@@ -20,6 +20,8 @@ chromadb~=0.5
 sounddevice~=0.5
 soundfile~=0.12
 numpy>=1.24,<2.0
+faster-whisper~=1.1
+# silero-vad 通过 torch.hub.load 动态加载，无需在 requirements.txt 中声明
 
 # HTTP
 httpx~=0.28

@@ -410,10 +410,31 @@ export default function ConfigPage() {
               </select>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm">输出设备</span>
-              <select className="input-field w-48 py-1 text-xs" value={cfg.perception?.tts?.output_device ?? ''} onChange={e => updateField('perception.tts.output_device', e.target.value === '' ? null : +e.target.value)}>
-                <option value="">默认</option>
-                {outputDevices.map(d => <option key={d.index} value={d.index}>{d.name}</option>)}
+              <span className="text-sm">识别语言</span>
+              <select className="input-field w-32 py-1 text-xs" value={cfg.perception?.asr?.language || 'auto'} onChange={e => updateField('perception.asr.language', e.target.value)}>
+                <option value="auto">自动检测</option>
+                <option value="zh">中文</option>
+                <option value="en">英文</option>
+                <option value="ja">日文</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Beam Size</span>
+              <input type="number" min={1} max={10} className="input-field w-20 text-center text-sm" value={cfg.perception?.asr?.beam_size ?? 5} onChange={e => updateField('perception.asr.beam_size', +e.target.value)} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Best Of</span>
+              <input type="number" min={1} max={10} className="input-field w-20 text-center text-sm" value={cfg.perception?.asr?.best_of ?? 5} onChange={e => updateField('perception.asr.best_of', +e.target.value)} />
+            </div>
+            <SliderField label="Patience" value={cfg.perception?.asr?.patience ?? 1.0} min={0.5} max={2.0} step={0.1} onChange={v => updateField('perception.asr.patience', v)} />
+            <Field label="初始提示词">
+              <input className="input-field text-xs" value={cfg.perception?.asr?.initial_prompt || ''} placeholder="可选的初始提示词" onChange={e => updateField('perception.asr.initial_prompt', e.target.value)} />
+            </Field>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">计算设备</span>
+              <select className="input-field w-32 py-1 text-xs" value={cfg.perception?.asr?.device || 'cuda'} onChange={e => updateField('perception.asr.device', e.target.value)}>
+                <option value="cuda">CUDA (GPU)</option>
+                <option value="cpu">CPU</option>
               </select>
             </div>
             <div className="border-t border-white/5 pt-3 space-y-2">
