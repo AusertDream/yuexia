@@ -42,6 +42,7 @@ class BrainService:
         self._engine_loading = False
         self._inferring = False  # 推理状态标志，供行为引擎检查
         self.behavior_engine = None
+        self.diary_scheduler = None
 
         log.info("BrainService 初始化完成（引擎延迟加载）")
 
@@ -66,6 +67,8 @@ class BrainService:
             log.info("LLM 引擎已加载")
             # 引擎加载完成后启动行为引擎
             self._start_behavior_engine()
+            # 启动日记定时调度器
+            self._start_diary_scheduler()
         except Exception:
             self.engine = None
             self.memory = None
@@ -87,6 +90,19 @@ class BrainService:
         except Exception:
             log.warning("行为引擎启动失败", exc_info=True)
             self.behavior_engine = None
+
+    def _start_diary_scheduler(self):
+        """如果配置启用，启动日记调度器"""
+        if not get("diary.enabled", True):
+            log.info("日记调度器未启用（diary.enabled=false）")
+            return
+        try:
+            from src.backend.brain.diary_scheduler import DiaryScheduler
+            self.diary_scheduler = DiaryScheduler(self)
+            self.diary_scheduler.start()
+        except Exception:
+            log.warning("日记调度器启动失败", exc_info=True)
+            self.diary_scheduler = None
 
     def _ensure_engine(self):
         """延迟加载 LLM 引擎，线程安全"""
@@ -164,13 +180,7 @@ class BrainService:
             self._trigger_tts(full_reply, emotion)
             # 推送表情更新
             await self.socketio.emit("expression", {"emotion": emotion}, namespace="/ws/events")
-            # 日记记录检查
-            if self.diary and get("diary.enabled", True):
-                for diary_type in ["daily", "weekly", "monthly", "yearly"]:
-                    try:
-                        await self.diary.write(self.history, self.engine, diary_type)
-                    except Exception:
-                        log.debug(f"{diary_type} 日记写入跳过", exc_info=True)
+            # 日记不再每轮顺便生成，改由 DiaryScheduler 按 generation_time + frequency 定时统一负责
 
         except Exception as e:
             log.exception("推理异常")
@@ -194,6 +204,7 @@ class BrainService:
         old_prompt_mgr = self.prompt_mgr
         old_diary = self.diary
         old_behavior = self.behavior_engine
+        old_diary_scheduler = self.diary_scheduler
 
         try:
             # 先创建新引擎
@@ -216,6 +227,9 @@ class BrainService:
             # 停止旧的行为引擎
             if old_behavior and old_behavior.is_running:
                 old_behavior.stop()
+            # 停止旧的日记调度器
+            if old_diary_scheduler and old_diary_scheduler.is_running:
+                old_diary_scheduler.stop()
 
             # 异步关闭旧引擎，释放 GPU 显存和连接池
             if old_engine is not None and hasattr(old_engine, 'shutdown'):
@@ -227,6 +241,8 @@ class BrainService:
 
             # 启动新的行为引擎
             self._start_behavior_engine()
+            # 启动新的日记调度器
+            self._start_diary_scheduler()
 
             log.info("引擎重新加载完成")
         except Exception:
@@ -236,11 +252,15 @@ class BrainService:
             self.prompt_mgr = old_prompt_mgr
             self.diary = old_diary
             self.behavior_engine = old_behavior
+            self.diary_scheduler = old_diary_scheduler
             log.error("引擎重新加载失败，保留旧引擎继续服务", exc_info=True)
             raise
 
     def shutdown(self):
-        """关闭 BrainService，停止行为引擎"""
+        """关闭 BrainService，停止行为引擎与日记调度器"""
         if self.behavior_engine and self.behavior_engine.is_running:
             self.behavior_engine.stop()
             log.info("行为引擎已随 BrainService 关闭")
+        if self.diary_scheduler and self.diary_scheduler.is_running:
+            self.diary_scheduler.stop()
+            log.info("日记调度器已随 BrainService 关闭")

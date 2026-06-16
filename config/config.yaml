@@ -49,6 +49,7 @@ brain:
 diary:
   enabled: true
   output_dir: data/diary
+  generation_time: '22:00'  # 每天到点后检查并生成到期日记
 
   daily:
     enabled: true

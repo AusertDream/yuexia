@@ -32,7 +32,7 @@ class DiaryWriter:
             log.debug("状态文件保存失败", exc_info=True)
 
     def _should_generate(self, diary_type: str) -> bool:
-        """判断是否应该生成该类型的日记"""
+        """判断是否应该生成该类型的日记，消费 diary.<type>.frequency 配置（间隔倍数，最小 1）"""
         last_time_str = self.state.get(f"{diary_type}_last")
         if not last_time_str:
             return True
@@ -41,11 +41,17 @@ class DiaryWriter:
         except ValueError:
             return True
         now = datetime.now()
+        try:
+            freq = int(get(f"diary.{diary_type}.frequency", 1))
+        except (TypeError, ValueError):
+            freq = 1
+        if freq < 1:
+            freq = 1
         intervals = {
-            "daily": lambda: now.date() > last_time.date(),
-            "weekly": lambda: (now - last_time).days >= 7,
-            "monthly": lambda: (now.year, now.month) > (last_time.year, last_time.month),
-            "yearly": lambda: now.year > last_time.year,
+            "daily": lambda: (now.date() - last_time.date()).days >= freq,
+            "weekly": lambda: (now.date() - last_time.date()).days >= 7 * freq,
+            "monthly": lambda: (now.year - last_time.year) * 12 + (now.month - last_time.month) >= freq,
+            "yearly": lambda: now.year - last_time.year >= freq,
         }
         check = intervals.get(diary_type)
         return check() if check else True
