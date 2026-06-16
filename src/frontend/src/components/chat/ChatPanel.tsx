@@ -1,18 +1,43 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { useChatStream } from '../../hooks/useSSE'
 import { useSocketStore, useChatStore } from '../../stores'
 import { genMsgId } from '../../stores/useChatStore'
 import MarkdownRenderer from './MarkdownRenderer'
-import { live2dSpeak } from '../../lib/live2dBridge'
+import { live2dSpeak, isLive2DSpeaking } from '../../lib/live2dBridge'
+
+function getInitialConversationMode(): boolean {
+  try {
+    return localStorage.getItem('yuexia-conversation-mode') === 'true'
+  } catch {
+    return false
+  }
+}
 
 export default function ChatPanel() {
   const { sessions, currentId, messages, loadSessions, switchSession, createSession, deleteSession, setMessages } = useChatStore()
   const [input, setInput] = useState('')
   const [listening, setListening] = useState(false)
+  const [conversationMode, setConversationMode] = useState(getInitialConversationMode)
   const { sendMessage, streaming, cancel } = useChatStream()
   const bottomRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const eventsConnected = useSocketStore(s => s.eventsConnected)
+
+  // 用 ref 保存 streaming 和 conversationMode，避免 asr_result effect 的过期闭包
+  const streamingRef = useRef(streaming)
+  streamingRef.current = streaming
+  const conversationModeRef = useRef(conversationMode)
+  conversationModeRef.current = conversationMode
+  // 用 ref 跟踪当前输入框内容，供 asr_result 处理器在事件回调中直接读取（避免在 state updater 内做副作用）
+  const inputRef = useRef(input)
+  inputRef.current = input
+
+  // 持久化 conversationMode
+  useEffect(() => {
+    try {
+      localStorage.setItem('yuexia-conversation-mode', String(conversationMode))
+    } catch { /* ignore */ }
+  }, [conversationMode])
 
   useEffect(() => { loadSessions() }, [loadSessions])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -26,7 +51,22 @@ export default function ChatPanel() {
     if (!eventsConnected) return
     const handler = (d: { text: string }) => {
       if (!d.text) return
-      setInput(prev => prev + d.text)
+      if (!conversationModeRef.current) {
+        // 普通模式：追加到输入框
+        setInput(prev => prev + d.text)
+        return
+      }
+      // 对话模式
+      if (isLive2DSpeaking()) return // 避免回声
+      if (streamingRef.current) {
+        setInput(prev => prev + d.text)
+        return
+      }
+      // 未在 streaming：取当前输入框内容合并后自动发送
+      const merged = (inputRef.current + d.text).trim()
+      if (!merged) return // 空白不发送
+      setInput('')
+      sendText(merged)
     }
     const store = useSocketStore.getState()
     store.onAsrResult(handler)
@@ -90,13 +130,12 @@ export default function ChatPanel() {
     }
   }
 
-  const send = () => {
-    if (!input.trim() || streaming) return
-    const text = input.trim()
-    setInput('')
-    setMessages(prev => [...prev, { id: genMsgId(), role: 'user', content: text }, { id: genMsgId(), role: 'assistant', content: '' }])
+  const sendText = useCallback((text: string) => {
+    if (!text.trim() || streamingRef.current) return
+    const trimmed = text.trim()
+    setMessages(prev => [...prev, { id: genMsgId(), role: 'user', content: trimmed }, { id: genMsgId(), role: 'assistant', content: '' }])
 
-    sendMessage(text, chunk => {
+    sendMessage(trimmed, chunk => {
       if (chunk.type === 'chunk') {
         setMessages(prev => {
           const copy = [...prev]
@@ -121,7 +160,14 @@ export default function ChatPanel() {
         })
       }
     })
-  }
+  }, [sendMessage, setMessages])
+
+  const send = useCallback(() => {
+    if (!input.trim() || streaming) return
+    const text = input.trim()
+    setInput('')
+    sendText(text)
+  }, [input, streaming, sendText])
 
   return (
     <div className="glass-chat rounded-2xl flex flex-col overflow-hidden h-full shadow-[0_-5px_20px_rgba(0,0,0,0.3)]" style={{ willChange: 'transform' }}>
@@ -190,6 +236,11 @@ export default function ChatPanel() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           />
+          <button onClick={() => setConversationMode(v => !v)}
+            className={`p-2 rounded-lg transition-colors ${conversationMode ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]' : 'text-gray-400 hover:text-[var(--accent-blue)]'}`}
+            title={conversationMode ? '对话模式：说完自动发送' : '对话模式已关闭'}>
+            <span className="material-symbols-outlined text-[20px]">voice_chat</span>
+          </button>
           <button onClick={toggleVoice}
             className={`p-2 rounded-lg transition-colors ${listening ? 'bg-red-500/20 text-red-400 animate-pulse' : 'text-gray-400 hover:text-[var(--accent-blue)]'}`}>
             <span className="material-symbols-outlined text-[20px]">mic</span>
