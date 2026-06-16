@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import ConfigPage from './pages/ConfigPage'
 import PerceptionPage from './pages/PerceptionPage'
 import LogsPage from './pages/LogsPage'
+import DiaryPage from './pages/DiaryPage'
 import { useSocketStore, useSidebarStore } from './stores'
 import ToastContainer from './components/ui/Toast'
 import { registerLive2DFrame } from './lib/live2dBridge'
@@ -56,6 +57,7 @@ function AppContent() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/config" element={<ConfigPage />} />
             <Route path="/perception" element={<PerceptionPage />} />
+            <Route path="/diary" element={<DiaryPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

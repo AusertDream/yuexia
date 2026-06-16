@@ -5,6 +5,7 @@ const NAV = [
   { to: '/', icon: 'dashboard', label: '仪表盘' },
   { to: '/config', icon: 'settings_applications', label: '系统配置' },
   { to: '/perception', icon: 'visibility', label: '感知监控' },
+  { to: '/diary', icon: 'auto_stories', label: '她的日记' },
   { to: '/logs', icon: 'terminal', label: '系统日志' },
 ]
 

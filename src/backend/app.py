@@ -70,11 +70,13 @@ def create_app():
     from src.backend.api.session import session_router
     from src.backend.api.system import system_router
     from src.backend.api.asr_api import asr_router
+    from src.backend.api.diary_api import diary_router
     app.include_router(chat_router)
     app.include_router(config_router)
     app.include_router(session_router)
     app.include_router(system_router)
     app.include_router(asr_router)
+    app.include_router(diary_router)
 
     # Security: request size limit & rate limit
     if cfg_get("security.api_access_control", False):
