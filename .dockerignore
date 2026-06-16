@@ -1,0 +1,30 @@
+# ============================================================================
+# Docker 构建上下文排除项 —— 镜像构建只需少量文件(requirements/package.json/
+# entrypoint)，其余大目录全部排除以加快上传。项目代码运行时通过 bind mount 提供。
+# ============================================================================
+.git
+.claude
+__pycache__
+**/__pycache__
+*.pyc
+.runtime
+logs
+data
+tests
+shared_claude
+teamwork
+super-agent-party
+training data
+assets/live2d
+node_modules
+**/node_modules
+dist
+**/dist
+.vite
+*.tsbuildinfo
+.empty_model
+.env
+
+# GPT-SoVITS 体积庞大，构建期只需要它的 requirements.txt
+GPT-SoVITS-v2-240821/*
+!GPT-SoVITS-v2-240821/requirements.txt
