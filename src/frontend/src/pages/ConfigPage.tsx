@@ -12,6 +12,10 @@ const EMBEDDING_MODELS = ['text-embedding-3-small', 'm3e-base', 'bge-large-zh'] 
 const ASR_SIZES = ['tiny', 'base', 'small', 'medium', 'large-v3'] as const
 const COMPUTE_TYPES = ['float16', 'int8_float16', 'int8'] as const
 
+// 是否显示「尚无后端实现」的配置项。默认隐藏，避免用户改了没效果误以为软件坏了。
+// 将来某项真正实现后，把对应字段移出此开关包裹即可。
+const SHOW_UNIMPLEMENTED = false
+
 const EMOTION_COLORS: Record<string, string> = {
   happy: 'bg-yellow-400', angry: 'bg-red-400', sad: 'bg-blue-400', neutral: 'bg-gray-400',
   shy: 'bg-pink-400', excited: 'bg-orange-400', surprised: 'bg-purple-400',
@@ -284,7 +288,9 @@ export default function ConfigPage() {
                 <SliderField label="Temperature" value={cfg.brain?.temperature ?? 0.7} min={0} max={2} step={0.1} onChange={v => updateField('brain.temperature', v)} />
                 <SliderField label="Top_P" value={cfg.brain?.top_p ?? 0.9} min={0} max={1} step={0.05} onChange={v => updateField('brain.top_p', v)} />
                 <SliderField label="最大 Tokens" value={cfg.brain?.max_tokens ?? 4096} min={512} max={8192} step={512} onChange={v => updateField('brain.max_tokens', v)} />
-                <SliderField label="上下文长度" value={cfg.brain?.context_length ?? 8192} min={2048} max={32768} step={1024} onChange={v => updateField('brain.context_length', v)} fmt={v => v >= 1024 ? `${Math.round(v/1024)}k` : String(v)} />
+                {SHOW_UNIMPLEMENTED && (
+                  <SliderField label="上下文长度" value={cfg.brain?.context_length ?? 8192} min={2048} max={32768} step={1024} onChange={v => updateField('brain.context_length', v)} fmt={v => v >= 1024 ? `${Math.round(v/1024)}k` : String(v)} />
+                )}
                 <SliderField label="Repetition Penalty" value={cfg.brain?.repetition_penalty ?? 1.0} min={1} max={2} step={0.05} onChange={v => updateField('brain.repetition_penalty', v)} />
                 <SliderField label="Frequency Penalty" value={cfg.brain?.frequency_penalty ?? 0} min={-2} max={2} step={0.1} onChange={v => updateField('brain.frequency_penalty', v)} />
                 <SliderField label="Presence Penalty" value={cfg.brain?.presence_penalty ?? 0} min={-2} max={2} step={0.1} onChange={v => updateField('brain.presence_penalty', v)} />
@@ -354,8 +360,12 @@ export default function ConfigPage() {
                   <input className="input-field font-mono text-xs" value={cfg.perception?.tts?.gpt_weights || ''} onChange={e => updateField('perception.tts.gpt_weights', e.target.value)} />
                 </Field>
                 <SliderField label="语速" value={cfg.perception?.tts?.speed ?? 1.0} min={0.5} max={2} step={0.1} onChange={v => updateField('perception.tts.speed', v)} />
-                <SliderField label="音量" value={cfg.perception?.tts?.volume ?? 1.0} min={0} max={2} step={0.1} onChange={v => updateField('perception.tts.volume', v)} />
-                <SliderField label="情感强度" value={cfg.perception?.tts?.emotion_intensity ?? 1.0} min={0} max={2} step={0.1} onChange={v => updateField('perception.tts.emotion_intensity', v)} />
+                {SHOW_UNIMPLEMENTED && (
+                  <>
+                    <SliderField label="音量" value={cfg.perception?.tts?.volume ?? 1.0} min={0} max={2} step={0.1} onChange={v => updateField('perception.tts.volume', v)} />
+                    <SliderField label="情感强度" value={cfg.perception?.tts?.emotion_intensity ?? 1.0} min={0} max={2} step={0.1} onChange={v => updateField('perception.tts.emotion_intensity', v)} />
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -465,19 +475,23 @@ export default function ConfigPage() {
               <Field label="集合名称">
                 <input className="input-field" value={cfg.memory?.collection_name || ''} onChange={e => updateField('memory.collection_name', e.target.value)} />
               </Field>
-              <Field label="嵌入模型">
-                <select className="input-field" value={cfg.memory?.embedding_model || 'm3e-base'} onChange={e => updateField('memory.embedding_model', e.target.value)}>
-                  {EMBEDDING_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </Field>
+              {SHOW_UNIMPLEMENTED && (
+                <Field label="嵌入模型">
+                  <select className="input-field" value={cfg.memory?.embedding_model || 'm3e-base'} onChange={e => updateField('memory.embedding_model', e.target.value)}>
+                    {EMBEDDING_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </Field>
+              )}
             </div>
             <div className="mt-4 flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center">
-                  <Toggle checked={cfg.memory?.auto_persist ?? true} onChange={v => updateField('memory.auto_persist', v)} />
+              {SHOW_UNIMPLEMENTED && (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    <Toggle checked={cfg.memory?.auto_persist ?? true} onChange={v => updateField('memory.auto_persist', v)} />
+                  </div>
+                  <span className="text-sm">自动持久化</span>
                 </div>
-                <span className="text-sm">自动持久化</span>
-              </div>
+              )}
               <div className="flex items-center gap-2 ml-4">
                 <div className="flex items-center">
                   <Toggle checked={cfg.memory?.enabled ?? false} onChange={v => updateField('memory.enabled', v)} />
@@ -491,14 +505,18 @@ export default function ConfigPage() {
         <Section title="会话管理" icon="forum" desc="会话历史与自动保存" className="col-span-6" delay={0.1}>
             <div className="grid grid-cols-2 gap-4">
               <SliderField label="最大历史消息数" value={cfg.session?.max_history_messages ?? 40} min={10} max={200} step={10} onChange={v => updateField('session.max_history_messages', v)} />
-              <SliderField label="自动保存间隔 (秒)" value={cfg.session?.auto_save_interval ?? 30} min={5} max={300} step={5} onChange={v => updateField('session.auto_save_interval', v)} />
-              <SliderField label="消息最大长度" value={cfg.session?.max_message_length ?? 10000} min={1000} max={50000} step={1000} onChange={v => updateField('session.max_message_length', v)} />
-              <div className="flex items-center gap-2">
-                <div className="flex items-center">
-                  <Toggle checked={cfg.session?.auto_title_generation ?? true} onChange={v => updateField('session.auto_title_generation', v)} />
-                </div>
-                <span className="text-sm">自动生成标题</span>
-              </div>
+              {SHOW_UNIMPLEMENTED && (
+                <>
+                  <SliderField label="自动保存间隔 (秒)" value={cfg.session?.auto_save_interval ?? 30} min={5} max={300} step={5} onChange={v => updateField('session.auto_save_interval', v)} />
+                  <SliderField label="消息最大长度" value={cfg.session?.max_message_length ?? 10000} min={1000} max={50000} step={1000} onChange={v => updateField('session.max_message_length', v)} />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center">
+                      <Toggle checked={cfg.session?.auto_title_generation ?? true} onChange={v => updateField('session.auto_title_generation', v)} />
+                    </div>
+                    <span className="text-sm">自动生成标题</span>
+                  </div>
+                </>
+              )}
             </div>
           </Section>
 
