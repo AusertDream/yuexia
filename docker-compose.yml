@@ -26,10 +26,14 @@ services:
       TTS_PORT: ${TTS_PORT:-9880}
 
     ports:
-      # 宿主端口:容器端口  —— 前端是对外访问入口
+      # 仅前端对外开放 —— 浏览器经 Vite proxy 转发 /api /audio /ws 到容器内 5000，
+      # TTS 由后端在容器内部调用 9880，浏览器从不直连，故无需映射到宿主机
       - "${FRONTEND_PORT:-5173}:5173"
-      - "${BACKEND_PORT:-5000}:5000"
-      - "${TTS_PORT:-9880}:9880"
+
+    expose:
+      # 仅容器网络内可见，便于调试时 docker exec 直连，不暴露到宿主机
+      - "5000"
+      - "9880"
 
     volumes:
       # 项目代码：bind mount 进容器，改代码无需重建镜像，便于跨机部署
@@ -37,7 +41,7 @@ services:
       # 前端 node_modules：匿名卷遮挡，避免被宿主空目录覆盖（用镜像内安装好的）
       - /app/src/frontend/node_modules
       # 本地 LLM 模型目录：各机器路径不同，由 .env 的 MODEL_DIR 提供（只读挂载）
-      - ${MODEL_DIR:-./.empty_model}:/models/llm:ro
+      - ${MODEL_DIR:-/tmp}:/models/llm:ro
 
     # GPU（需宿主安装 NVIDIA Container Toolkit；Docker Desktop on Windows 需 WSL2）
     deploy:
