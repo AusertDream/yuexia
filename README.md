@@ -68,6 +68,26 @@ cd src/frontend && npm run dev
 
 浏览器会自动打开 http://localhost:5173，你将看到月下的 Live2D 角色和聊天界面。
 
+### Docker 部署（跨机迁移推荐）
+
+如果你希望把月下部署到另一台机器，或者不想在宿主机上手动配置 conda、Node 与一堆依赖，可以使用项目自带的 Docker Compose 一键部署。整套环境（Python 3.11、Node 20、ffmpeg、后端依赖、GPT-SoVITS 依赖、前端 node_modules）都固化在镜像里，项目代码则以挂载方式接入，因此换一台机器 `git clone` 后直接 `docker compose up` 即可运行，改代码也无需重建镜像。所有与机器相关的路径（最关键的是本地大模型目录）都不写死在配置里，而是通过 `.env` 文件注入，保证配置可以跨机器迁移。
+
+部署前请确认宿主机已安装 Docker 28.x 与 NVIDIA Container Toolkit，因为本地 Qwen3-VL-4B 推理依赖 GPU。在 Windows 上使用 Docker Desktop 时需要启用 WSL2 后端并开启 GPU 支持。准备就绪后，先复制环境变量模板并按本机情况填写：
+
+```bash
+cp .env.example .env
+```
+
+`.env` 中最重要的一项是 `MODEL_DIR`，需要填入宿主机上 Qwen3-VL-4B 模型目录的绝对路径，它会被以只读方式挂载进容器内的 `/models/llm`，容器启动时自动改写配置中的模型路径，无需手动改 `config.yaml`。如果你打算走远程 API 模式（`brain.engine=api`）而不加载本地模型，这一项可以留空。此外还可以在 `.env` 里调整对外暴露的端口（默认前端 5173、后端 5000、TTS 9880），以及通过 `START_TTS` 决定是否在容器内启动 GPT-SoVITS（设为 `0` 时语音合成不可用，但对话和页面其余功能不受影响）。
+
+填好后构建并后台启动：
+
+```bash
+docker compose up -d --build
+```
+
+首次构建会安装两套相互隔离的 Python 环境（后端与 GPT-SoVITS 的依赖版本互不兼容，必须分开）以及 GPU 版 PyTorch，体积较大、耗时较长，属正常现象。启动完成后在浏览器访问 `http://<宿主机IP>:5173` 即可打开月下的界面，从局域网内的其他设备也能通过这个地址访问。查看运行日志用 `docker compose logs -f`，停止服务用 `docker compose down`。
+
 ---
 
 ## 💬 核心能力
@@ -130,6 +150,10 @@ yuexia/
 ├── GPT-SoVITS-v2-240821/   # TTS 引擎
 ├── launcher.py              # 启动脚本（推荐）
 ├── start.bat                # Windows 一键启动
+├── Dockerfile               # 一体化容器镜像（Ubuntu/CUDA 基础）
+├── docker-compose.yml       # Docker Compose 编排
+├── docker/entrypoint.sh     # 容器启动脚本（Linux）
+├── .env.example             # Docker 部署环境变量模板
 └── docs/                    # 项目文档
 ```
 
